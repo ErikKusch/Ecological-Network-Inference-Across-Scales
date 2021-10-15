@@ -7,6 +7,170 @@
 #' AUTHOR: [Malyon Bimler, Erik Kusch]
 #' ####################################################################### #
 
+# HMSC =====================================================================
+HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSamples = nSamples, nChains = nChains){
+  ma <- NULL
+  na <- NULL
+  ### MCMC convergence ----
+  mpost <- convertToCodaObject(Model, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
+  psrf.beta <- gelman.diag(mpost$Beta,multivariate=FALSE)$psrf # "if these are smaller than 1.05, we are quite happy"
+  tmp <- summary(psrf.beta)
+  if(is.null(ma)){
+    ma=psrf.beta[,1]
+    na = paste0(as.character(thin),",",as.character(nSamples))
+  } else {
+    ma = cbind(ma,psrf.beta[,1])
+    if(j==1){
+      na = c(na,paste0(as.character(thin),",",as.character(nSamples)))
+    } else {
+      na = c(na,"")
+    }
+  }
+  jpeg(file=file.path(Dir, paste0(Name, "_MCMC_convergence.jpeg")), width = 32, height = 32, units = "cm", res = 100)
+  par(mfrow=c(2,1))
+  vioplot(ma,col=rainbow_hcl(1),names=na,ylim=c(0,max(ma)),main="psrf(beta)")
+  vioplot(ma,col=rainbow_hcl(1),names=na,ylim=c(0.9,1.1),main="psrf(beta)")
+  dev.off()
+  
+  ### Model Fit ----
+  m <- Model
+  preds <- computePredictedValues(m)
+  MF <- evaluateModelFit(hM=m, predY=preds)
+  partition <- createPartition(m, nfolds = 2)
+  preds <- computePredictedValues(m,partition=partition, nParallel = nChains)
+  MFCV <- evaluateModelFit(hM=m, predY=preds)
+  WAIC <- computeWAIC(m)
+  filename_out <- file.path(Dir, paste0(Name, "_MF_thin_", as.character(thin),
+                                        "_samples_", as.character(nSamples),
+                                        "_chains_",as.character(nChains),
+                                        ".Rdata"))
+  save(MF,MFCV,WAIC,Name,file = filename_out)
+  jpeg(file=file.path(Dir, paste0(Name, "_model_fit.jpeg")), width = 32, height = 32, units = "cm", res = 100)
+  if(!is.null(MF$TjurR2)){
+    plot(MF$TjurR2,MFCV$TjurR2,xlim=c(-1,1),ylim=c(-1,1),
+         xlab = "explanatory power",
+         ylab = "predictive power",
+         main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": Tjur R2"))
+    abline(0,1)
+    abline(v=0)
+    abline(h=0)
+  }
+  if(!is.null(MF$R2)){
+    plot(MF$R2,MFCV$R2,xlim=c(-1,1),ylim=c(-1,1),
+         xlab = "explanatory power",
+         ylab = "predictive power",
+         main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": R2"))
+    abline(0,1)
+    abline(v=0)
+    abline(h=0)
+  }
+  if(!is.null(MF$AUC)){
+    plot(MF$AUC,MFCV$AUC,xlim=c(0,1),ylim=c(0,1),
+         xlab = "explanatory power",
+         ylab = "predictive power",
+         main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": AUC"))
+    abline(0,1)
+    abline(v=0.5)
+    abline(h=0.5)
+  }
+  dev.off()
+  
+  ### PARAMETER ESTIMATES ----
+  pdf(file = file.path(Dir, paste0(Name, "_parameter_estimates.pdf")))
+  VP <- computeVariancePartitioning(Model)
+  vals <- VP$vals
+  mycols <- rainbow(nrow(VP$vals))
+  plotVariancePartitioning(hM=Model, VP=VP,cols = mycols, args.leg=list(bg="white",cex=0.7),
+                           main = paste0("Proportion of explained variance, ",Name),cex.main=0.8)
+  R2 <- NULL
+  if(!is.null(MF$TjurR2)){
+    TjurR2 <- MF$TjurR2
+    vals <- rbind(vals,TjurR2)
+    R2 <- TjurR2
+  }
+  if(!is.null(MF$R2)){
+    R2 <- MF$R2
+    vals <- rbind(vals,R2)
+  }
+  write.csv(vals,file=file.path(Dir, paste0(Name, "_parameter_estimates_VP.csv")))
+  if(!is.null(R2)){
+    VPr <- VP
+    for(k in 1:m$ns){
+      VPr$vals[,k] <- R2[k]*VPr$vals[,k]
+    }
+    VPr$vals <- VPr$vals[,order(-R2)]
+    plotVariancePartitioning(hM=Model, VP=VPr,cols = mycols, args.leg=list(bg="white",cex=0.7),ylim=c(0,1),
+                             main=paste0("Proportion of raw variance, ",Name),cex.main=0.8)
+  }
+  postBeta = getPostEstimate(Model, parName="Beta")
+  show.sp.names = (is.null(Model$phyloTree) && Model$ns<=20) 
+  plotBeta(Model, post=postBeta, supportLevel = 0.95,param="Sign",
+           plotTree = !is.null(Model$phyloTree),
+           covNamesNumbers = c(TRUE,FALSE),
+           spNamesNumbers=c(show.sp.names,FALSE),
+           cex=c(0.6,0.6,0.8))
+  mymain = paste0("BetaPlot, ",Name)
+  if(!is.null(Model$phyloTree)){
+    mpost = convertToCodaObject(Model)
+    rhovals = unlist(poolMcmcChains(mpost$Rho))
+    mymain = paste0(mymain,", E[rho] = ",round(mean(rhovals),2),", Pr[rho>0] = ",round(mean(rhovals>0),2))
+  }
+  title(main=mymain, line=2.5, cex.main=0.8)
+  me = as.data.frame(t(postBeta$mean))
+  me = cbind(Model$spNames,me)
+  colnames(me) = c("Species",Model$covNames)
+  po = as.data.frame(t(postBeta$support))
+  po = cbind(Model$spNames,po)
+  colnames(po) = c("Species",Model$covNames)
+  ne = as.data.frame(t(postBeta$supportNeg))
+  ne = cbind(Model$spNames,ne)
+  colnames(ne) = c("Species",Model$covNames)
+  vals = list("Posterior mean"=me,"Pr(x>0)"=po,"Pr(x<0)"=ne)
+  writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Beta.xlsx")))
+  if(Model$nt>1){
+    postGamma = getPostEstimate(Model, parName="Gamma")
+    plotGamma(Model, post=postGamma, supportLevel = 0.9, param="Sign",
+              covNamesNumbers = c(TRUE,FALSE),
+              trNamesNumbers=c(m$nt<21,FALSE),
+              cex=c(0.6,0.6,0.8))
+    title(main=paste0("GammaPlot ",Name), line=2.5,cex.main=0.8)
+  }
+  OmegaCor = computeAssociations(Model)
+  supportLevel = 0.95
+  for (r in 1:Model$nr){
+    plotOrder = corrMatOrder(OmegaCor[[r]]$mean,order="AOE")
+    toPlot = ((OmegaCor[[r]]$support>supportLevel) + (OmegaCor[[r]]$support<(1-supportLevel))>0)*sign(OmegaCor[[r]]$mean)
+    if(Model$ns>20){
+      colnames(toPlot)=rep("",Model$ns)
+      rownames(toPlot)=rep("",Model$ns)
+    }
+    mymain = paste0("Associations, ",Name, ": ",names(Model$ranLevels)[[r]])
+    if(Model$ranLevels[[r]]$sDim>0){
+      mpost = convertToCodaObject(Model)
+      alphavals = unlist(poolMcmcChains(mpost$Alpha[[1]][,1]))
+      mymain = paste0(mymain,", E[alpha1] = ",round(mean(alphavals),2),", Pr[alpha1>0] = ",round(mean(alphavals>0),2))
+    }
+    corrplot(toPlot[plotOrder,plotOrder], method = "color",
+             col=colorRampPalette(c("blue","white","red"))(3),
+             mar=c(0,0,1,0),
+             main=mymain,cex.main=0.8)
+    
+    me = as.data.frame(OmegaCor[[r]]$mean)
+    me = cbind(Model$spNames,me)
+    colnames(me)[1] = ""
+    po = as.data.frame(OmegaCor[[r]]$support)
+    po = cbind(Model$spNames,po)
+    colnames(po)[1] = ""
+    ne = as.data.frame(1-OmegaCor[[r]]$support)
+    ne = cbind(Model$spNames,ne)
+    colnames(ne)[1] = ""
+    vals = list("Posterior mean"=me,"Pr(x>0)"=po,"Pr(x<0)"=ne)
+    writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Omega_",names(Model$ranLevels)[[r]],".xlsx")))
+  }
+  dev.off()
+  return(vals)
+}
+
 # PREPARING DATA ===========================================================
 ## KUSCH -------------------------------------------------------------------
 # takes character and data frame arguments and returns a list object in preparation for network model execution

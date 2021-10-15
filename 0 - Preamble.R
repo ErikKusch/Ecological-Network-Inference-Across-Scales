@@ -64,7 +64,12 @@ package_vec <- c(
   "qgraph", # for network visualisation
   "gawdis", # for balanced gower distance
   "reshape2", # for community matrix generation from abundance list
-  "phytools" # for averaging of phylogenies
+  "phytools", # for averaging of phylogenies
+  "Hmsc", # for HMSC models
+  "colorspace", # for HMSC evaluation
+  "vioplot", # for HMSC evaluation
+  "snow", # for HMSC evaluation
+  "corrplot" # for HMSC evaluation
 )
 sapply(package_vec, install.load.package)
 
@@ -109,4 +114,8 @@ hush <- function(code){
   tmp = code
   sink()
   return(tmp)
+}
+
+Sort.DF <- function(Data = NULL, Column = NULL){
+  Data[order(Data[ , Column] ), ]
 }
