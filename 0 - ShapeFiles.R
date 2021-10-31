@@ -13,6 +13,13 @@ if(!file.exists(file.path(Dir.Shapes, "LandMask.zip"))){ # if land mask has not 
 }
 LandMask <- readOGR(Dir.Shapes, "ne_10m_land", verbose = FALSE) # read land mask in
 
+#### COUNTRY MASK (for producing maps with national borders) -----------------------------------------------------------
+if(!file.exists(file.path(Dir.Shapes, "CountryMask.zip"))){ # if land mask has not been downloaded yet
+  download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip", destfile = paste(Dir.Shapes, "CountryMask.zip", sep="/")) # download cultural vector
+  unzip(paste(Dir.Shapes, "CountryMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
+}
+CountryMask <- readOGR(Dir.Shapes, "ne_10m_admin_0_countries", verbose = FALSE) # read land mask in
+
 #### ECOREGIONS -----------------------------------------------------------
 if(!file.exists(file.path(Dir.Shapes, "WWF_ecoregions"))){
   download.file("http://assets.worldwildlife.org/publications/15/files/original/official_teow.zip", destfile = file.path(Dir.Shapes, "wwf_ecoregions.zip"))
