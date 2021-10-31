@@ -1,10 +1,11 @@
 #' ####################################################################### #
-#' PROJECT: [PhD; 2B - PLOT NETWORKS] 
+#' PROJECT: [Data Simplification for Network Inference across Scales] 
 #' CONTENTS: 
 #'  - Generate plot data base species-association/-interaction networks
 #'  DEPENDENCIES:
 #'  - 0 - Preamble.R
 #'  - 0 - ShapeFiles.R
+#'  - X - Functions_Data.R
 #'  - X - Functions_Bayes.R
 #'  - X - Functions_Plotting.R
 #'  - No data dependencies
@@ -15,11 +16,63 @@ rm(list=ls())
 # PREAMBLE ================================================================
 source("0 - Preamble.R")
 source("0 - ShapeFiles.R")
+source("X - Functions_Data.R")
 source("X - Functions_Plotting.R")
 source("X - Functions_Bayes.R")
 nSamples <- 7000
 nWarmup <- 700
 nChains <- 4
+
+####### CLIMATE DATA RETRIEVAL ---------------------------------------------------------
+ECV_vec <- c("2m_temperature", "volumetric_soil_water_layer_1", "total_precipitation", "potential_evaporation")
+FIA_shp <- crop(FIA_shp, extent(extent(FIA_shp)[1], -59.5, extent(FIA_shp)[3], extent(FIA_shp)[4]))
+if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
+  for(Clim_Iter in 1:length(ECV_vec)){
+    PrecipFix <- ifelse(startsWith(ECV_vec[Clim_Iter], "total"), TRUE, FALSE)
+    if(!file.exists(file.path(Dir.Plots, paste0("FIA_",  ECV_vec[Clim_Iter], ".nc")))){
+      Temp_ras <- download_ERA(Variable = ECV_vec[Clim_Iter],
+                               DateStart = "1981-01-01",
+                               DateStop = "2020-12-31",
+                               TResolution = "month",
+                               TStep = 1,
+                               API_Key = API_Key,
+                               API_User = API_User,
+                               Extent = FIA_shp,
+                               Dir = Dir.Plots,
+                               FileName = paste0("FIA_",  ECV_vec[Clim_Iter]),
+                               Cores = Cores,
+                               TryDown = 42,
+                               SingularDL = TRUE,
+                               verbose = TRUE,
+                               PrecipFix = PrecipFix
+      )
+    }
+    if(!file.exists(file.path(Dir.Plots, paste0("FIA_UC",  ECV_vec[Clim_Iter], ".nc")))){
+      Temp_ras <- download_ERA(Variable = ECV_vec[Clim_Iter],
+                               DataSet = "era5",
+                               Type = "ensemble_members",
+                               DateStart = "1981-01-01",
+                               DateStop = "2020-12-31",
+                               TResolution = "month",
+                               TStep = 1,
+                               API_Key = API_Key,
+                               API_User = API_User,
+                               Extent = FIA_shp,
+                               Dir = Dir.Plots,
+                               FileName = paste0("FIA_UC",  ECV_vec[Clim_Iter]),
+                               Cores = parallel::detectCores(),
+                               TryDown = 42,
+                               SingularDL = TRUE,
+                               verbose = TRUE,
+                               PrecipFix = PrecipFix
+      ) 
+      print("Aggregating Ensembles")
+      Temp_ras <- stackApply(Temp_ras, rep(1:(nlayers(Temp_ras)/10), each = 10), sd, progress = "text")
+      writeRaster(x = Temp_ras, filename = file.path(Dir.Plots, paste0("FIA_UC",  ECV_vec[Clim_Iter], ".nc")), overwrite = TRUE)
+    }
+  } 
+}
+
 
 ####### FIA DATA RETRIEVAL ---------------------------------------------------------
 FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
@@ -38,30 +91,62 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
   ## BIOME SHAPE PREPARATION
   FIAMerged_shp <- aggregate(FIA_shp, by = "BIOME") # Merge shapes according to biome type
   FIAMerged_shp@data$Names <- Full_Biomes[match(FIAMerged_shp@data$BIOME, Abbr_Biomes)] # Assign corresponding full text biome names
-  if(!file.exists(paste0(Dir.PlotNets.FIA, "/FIA_SitesBiomes.html"))){
-    FIAPlots_df <- unique(FIA_df$PLOT[, c("LON", "LAT")]) # plot extraction with lat and lon
-    FIAPlots_df <- na.omit(FIAPlots_df) # remove any NA rows
-    ## plot biomes and FIA sites as mapview object
-    Biomes_mv <- mapview(FIAMerged_shp, color = "black", layer.name = "Biomes", zcol = "Names", col.regions = heat.colors)
-    FIA_mv <- mapview(FIAPlots_df, xcol = "LON", ycol = "LAT", legend = FALSE, cex = 3.5, layer.name = "FIA Sites", color = "Black", grid = FALSE)
-    save(Biomes_mv, FIA_mv, FIAPlots_df, FIAMerged_shp, file = file.path(Dir.Plots, "MapData_FIA.RData"))
-    ## may need to run remotes::install_github("r-spatial/mapview") to get this to work
-    mapshot(Biomes_mv+FIA_mv, url = paste0(Dir.PlotNets.FIA, "/FIA_SitesBiomes.html"), fgb = FALSE)
-  }
   
   ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
   if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
     FIABiomass_df <- biomass(db = FIA_df, # which data base to use
-                             polys = FIAMerged_shp, 
+                             polys = FIAMerged_shp,
                              bySpecies = TRUE, # group by Species
                              byPlot = TRUE, # group by plot
-                             nCores = nCores, # use half the machines cores for this
-                             treeType = "live" 
+                             nCores = nCores,
+                             treeType = "live",
+                             returnSpatial = TRUE
     )
+    FIABiomass_df<- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
+    
+    ## CLIMATE DATA EXTRACTION 
+    Layer_seq <- seq.Date(as.Date("1981-01-01"), as.Date("2020-12-31"), by = "month")
+    for(Clim_Iter in 1:length(ECV_vec)){
+      print(ECV_vec[Clim_Iter])
+      FIABiomass_df$XYZ <- NA
+      colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- ECV_vec[Clim_Iter]
+      FIABiomass_df$XYZ <- NA
+      colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
+      FIABiomass_df$XYZ <- NA
+      colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
+      Extrac_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_", ECV_vec[Clim_Iter], ".nc"))), 
+                                     FIABiomass_df)
+      Uncert_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_UC", ECV_vec[Clim_Iter], ".nc"))), 
+                                     FIABiomass_df)
+      pb <- txtProgressBar(min = 0, max = ncol(Extrac_temp), style = 3) 
+      for(Plot_Iter in 1:ncol(Extrac_temp)){
+        ## only retain the last ten years leading up to data collection
+        Need_seq <- seq.Date(as.Date(paste0(FIABiomass_df[Plot_Iter, ]$YEAR-10, "-01-01")), 
+                             as.Date(paste0(FIABiomass_df[Plot_Iter, ]$YEAR, "-01-01")), 
+                             by = "month")
+        Time_seq <- Extrac_temp[which(Layer_seq %in% Need_seq), Plot_Iter]
+        Uncert_seq <- Uncert_temp[which(Layer_seq %in% Need_seq), Plot_Iter]
+        FIABiomass_df[Plot_Iter, ECV_vec[Clim_Iter]] <- mean(Time_seq, na.rm = TRUE)
+        FIABiomass_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_SD")] <- sd(Time_seq, na.rm = TRUE)
+        FIABiomass_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_UC")] <- mean(Uncert_seq, na.rm = TRUE)
+        setTxtProgressBar(pb, Plot_Iter)
+      }
+    }
     saveRDS(FIABiomass_df, file.path(Dir.Plots, "FIABiomes_df.rds"))
   }else{
-    load(file.path(Dir.Plots, "FIABiomes_df.rds"))
+    FIABiomass_df <- readRDS(file.path(Dir.Plots, "FIABiomes_df.rds"))
   }
+  
+  ## PHYLOGENY 
+  if(!file.exists(file.path(Dir.Plots, "Phylogeny.RData"))){
+    Phylo_ls <- FUN.PhyloDist(FIABiomass_df$SCIENTIFIC_NAME)
+    save(Phylo_ls, file = file.path(Dir.Plots, "Phylogeny.RData"))
+  }else{
+    load(file.path(Dir.Plots, "Phylogeny.RData"))
+  }
+  Phylo_specs <- Phylo_ls$Avg_Phylo$tip.label
+  ## limiting to recognised species
+  FIABiomass_df <- FIABiomass_df[FIABiomass_df$SCIENTIFIC_NAME %in% gsub(pattern = "_", replacement = " ", x =  Phylo_specs), ]
   
   ## SPLITTING INTO BIOMES
   FIASplit_ls <- split(FIABiomass_df, FIABiomass_df$polyID) # extract for each biome to separate data frame
@@ -108,7 +193,7 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
 }
 
 if(sum(file.exists(file.path(Dir.Plots, paste0("FIABiome", 1:12, ".RData")))) != 12){
-  FUN_PlotData_FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores()/2)
+  FUN_PlotData_FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores())
 }
 
 ################# RUN NETWORK METHOD FOR EACH FIA SUBSET ########################################### --------------------------
