@@ -1,7 +1,7 @@
 #' ####################################################################### #
 #' PROJECT: [PhD; X - BAYESIAN FUNCTIONALITY] 
 #' CONTENTS: 
-#'  - Functionality for execution and inspection of intrinsic fitness method
+#'  - Functionality for execution and inspection of Bayesian methodology/models
 #'  DEPENDENCIES:
 #'  - 
 #' AUTHOR: [Malyon Bimler, Erik Kusch]
@@ -171,78 +171,44 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
   return(vals)
 }
 
-# PREPARING DATA ===========================================================
-## KUSCH -------------------------------------------------------------------
-# takes character and data frame arguments and returns a list object in preparation for network model execution
-FUN.StanList <- function(
-  Outcome = "Outcome", # name of the outcome variable column in Index_df
-  Index_df = NULL, # data frame containing columns for ID, Fitness, Site, and Species
-  Neigh_df = NULL, # data frame containing column for site and columns for all species; cells containing containing predictor variable of each species at each site
-  Neigh_UC = NULL,
-  Envir_df = NULL, # data frame containing column for site and columns for climate variables; cells containing climate variable values at each site
-  Envir_UC = NULL,
-  Phylo_df = NULL, # phylogenetic distances
-  Phylo_UC = NULL,
-  Traits_df = NULL
-  ){
-  # Basic List and Data Cleaning ----
+# IF-REM ===================================================================
+## PREPARING DATA ----------------------------------------------------------
+# works on a data frame where the first four columns are plotID, fitness proxy (identified with Fitness argument), focal (species membership), focalID (speciesID and plotID)
+FUN.StanList <- function(Fitness = "value", data = NULL){
+  ## Basic List and Data Cleaning ----
   stan.data <- list() # set up the data in list format as preferred by STAN
-  Index_df[,Outcome] <- as.numeric(Index_df[,Outcome]) # ensure that outcome is numeric
-  Index_df$Species <- as.character(Index_df$Species) # ensure that species are stored as characters
-  Index_df$SiteID <- as.character(Index_df$SiteID) # ensure that sites are stored as characters
-  Index_df$ObsID <- 1:nrow(Index_df) # establish observation ID column
-  Neigh_df$SiteID <- as.character(Neigh_df$SiteID) # ensure SiteIDs aren't factors
-  Neigh_UC$SiteID <- as.character(Neigh_UC$SiteID) # ensure SiteIDs aren't factors
-  Envir_df$SiteID <- as.character(Envir_df$SiteID) # ensure SiteIDs aren't factors
-  Envir_UC$SiteID <- as.character(Envir_UC$SiteID) # ensure SiteIDs aren't factors
+  data[ , -c(1:3)] <- sapply(data[ , -c(1:3)], as.numeric) # ensure that neighbourhood protion of the data frame is numeric, first three columns are SiteID, taxon, and fitness proxy
+  data$taxon <- as.character(data$taxon)
   
-  # Data frame sorting ----
-  Neigh_df <- Neigh_df[order(Neigh_df$SiteID), ]
-  Neigh_UC <- Neigh_UC[order(Neigh_UC$SiteID), ]
-  Envir_df <- Envir_df[order(Envir_df$SiteID), ]
-  Envir_UC <- Envir_UC[order(Envir_UC$SiteID), ]
+  ## Number of Observations ----
+  Counts <- data[ , -c(1:3)] # remove first four columns (SiteID, taxon, and fitness proxy)
+  Counts[Counts > 0] <- 1 # set all counts/abundances which indicate presence to 1
+  Counts <- split(Counts, data$taxon) # split into groups by species
+  obs <- do.call(rbind, lapply(Counts, colSums))
   
-  # Number of Interactions ----
-  SitesMatch <- base::match(Index_df$SiteID, Neigh_df$SiteID) # find matching sites between index and neighbours
-  Interac_df <- cbind(Index_df,Neigh_df[SitesMatch,-1]) # build large data frame containing all neighbour predictors
-  Interac_df <- Interac_df[ , -c(1:4)] # remove first four columns (SiteID, Species, Outcome, ObsID)
-  Interac_df[Interac_df > 0] <- 1 # set all predictors which indicate presence to 1
-  Interac_df[is.na(Interac_df)] <- 0 # set NAs to zero to indicate no observed interaction
-  Counts <- split(Interac_df, Index_df$Species) # split into groups by species
-  obs <- do.call(rbind, lapply(Counts, colSums)) # count observed placement at same plot(s) for all species pairs
-  
-  # Data Dimensions ----
   ## Integers ----
-  stan.data$N <- nrow(Index_df) # number of observations
-  stan.data$N_Species <- length(unique(Index_df$Species)) # number of species
-  stan.data$N_Sites <- nrow(Envir_df) # number of sites
-  stan.data$N_Neigh <- ncol(Neigh_df)-1 # number of neighbours
-  stan.data$N_Interac <- length(obs[obs > 0]) # number of observed interactions
-  stan.data$N_Clim <- ncol(Envir_df)-1 # number of climate variables
+  stan.data$S <- length(unique(data$taxon))  # number of species
+  stan.data$N <- nrow(data)                  # number of observations
+  stan.data$K <- ncol(data[ , -c(1:3)])      # number of neighbours
+  stan.data$I <- length(obs[obs > 0])        # number of observed interactions
+  stan.data$Z <- stan.data$S*stan.data$K   # total number of possible interactions
   
   ## Vectors ----
-  stan.data$ID_Species <- as.numeric(as.factor(Index_df$Species)) # numeric indices for focal species
-  stan.data$ID_Site <- as.numeric(as.factor(Index_df$SiteID)) # numeric indices for sites
-  stan.data$fitness <- Index_df[, Outcome] # fitness proxy
+  stan.data$species_ID <- as.numeric(as.factor(data$taxon)) # numeric indices for focal species
+  stan.data$fitness <- data[, Fitness] # fitness proxy
   
-  ## Indices for later back-translation of numeric values ----
-  ## named factor vector of species names and numeric IDs
-  stan.data$Index$Species <- as.factor(Index_df$Species)
-  names(stan.data$Index$Species) <- as.numeric(as.factor(Index_df$Species))
-  ## named factor vector of site IDs names and numeric IDs
-  stan.data$Index$Sites <- as.factor(Envir_df$SiteID)
-  names(stan.data$Index$Sites) <- as.numeric(as.factor(Envir_df$SiteID))
-  
-  ## Indices for Interactions in Alpha-Matrix (matching species to interactions) ----
+  ## Indices for Interactions in Alpha-Matrix ----
   stan.data$inter_per_species <- obs # first count the number of interactions observed for each focal species
   stan.data$inter_per_species[stan.data$inter_per_species > 0] <- 1 # set all interactions to one
-  stan.data$inter_per_species <- rowSums(stan.data$inter_per_species, na.rm = TRUE) # count number of interactions per species
-  stan.data$icol <- unlist(apply(ifelse(obs > 0, TRUE, FALSE), 1, which)) # column index in the alpha matrix for each observed interaction
-  names(stan.data$icol) <- NULL # remove names of object
+  stan.data$inter_per_species <- rowSums(stan.data$inter_per_species)
+  stan.data$inter_per_species_perneighbour <- obs
+  stan.data$icol <- unlist(apply(ifelse(obs > 0, T, F), 1, which)) # column index in the alpha matrix for each observed interaction
+  names(stan.data$icol) <- NULL
+  stan.data$icol <- as.vector(stan.data$icol)
   stan.data$irow <- rep(1, stan.data$inter_per_species[[1]]) # begin the row index
-  stan.data$istart <- 1 # begin the start and end indices for the vector of interactions per species 
-  stan.data$iend <- stan.data$inter_per_species[[1]] # begin the start and end indices for the vector of interactions per species 
-  for(s in 2:stan.data$N_Species){ # populate indices for all the other species
+  stan.data$istart <- 1 # begin the start and end indices for the vector of interactions per species
+  stan.data$iend <- stan.data$inter_per_species[[1]] # begin the start and end indices for the vector of interactions per species
+  for(s in 2:stan.data$S){ # populate indices for all the other species
     # starting position of a_ij's for i in the vector of observed interactions (ie the 1st 'j')
     stan.data$istart[s] <- sum(stan.data$inter_per_species[s-1:s])+1
     # end position of a_ij's for i in the vector of observed interactions (the last 'j')
@@ -251,111 +217,28 @@ FUN.StanList <- function(
     stan.data$irow <- c(stan.data$irow, rep(s, stan.data$inter_per_species[[s]]))
   }
   
-  # ## Number of observations per interaction ----  I did not see this needed in the actual model
-  # stan.data$Obs <- as.vector(apply(obs, 1, c)) # vector of the number of observations for each interactions
-  # stan.data$Obs <- stan.data$Obs[stan.data$Obs > 0] # remove unobserved interactions
+  ## Model Matrix ----
+  stan.data$X <- as.matrix(data[ , -c(1:3)])
   
-  # Model Matrices ----
-  ## Neighbourhood Matrix
-  stan.data$Mat_Neigh <- as.matrix(Neigh_df[ , -1])
-  stan.data$UC_Neigh <- as.matrix(Neigh_UC[ , -1])
-  # stan.data$Mat_Neigh <- cbind(as.numeric(as.factor(Neigh_df$SiteID)), stan.data$Mat_Neigh)
-  # colnames(stan.data$Mat_Neigh)[1] <- "SiteID"
-  ## Environment Matrix
-  stan.data$Mat_Clim <- as.matrix(Envir_df[ , -1])  
-  stan.data$UC_Clim <- as.matrix(Envir_UC[ , -1])  
-  # stan.data$Mat_Clim <- cbind(as.numeric(as.factor(Envir_df$SiteID)), stan.data$Mat_Clim)
-  # colnames(stan.data$Mat_Clim)[1] <- "SiteID"
-  ## Phylogenetic Distance
-  stan.data$Mat_Phylo <- Phylo_df
-  stan.data$UC_Phylo <- Phylo_UC
-  ## Trait similarity
-  stan.data$Mat_Traits <- Traits_df
+  ## Number of observations per interaction ----
+  stan.data$Obs <- as.vector(apply(obs, 1, c)) # vector of the number of observations for each interactions
+  stan.data$Obs <- stan.data$Obs[stan.data$Obs > 0] # remove unobserved interactions
   
-  # Return list ----
   return(stan.data)
 }
 
-# ## BIMLER ------------------------------------------------------------------
-# # works on a data frame where the first four columns are plotID, fitness proxy (identified with Fitness argument), focal (species membership), focalID (speciesID and plotID)
-# Fun_StanList <- function(Fitness = "fit", data = NULL){
-#   ## Basic List and Data Cleaning ----
-#   stan.data <- list() # set up the data in list format as preferred by STAN
-#   data[ , -c(1:4)] <- sapply(data[ , -c(1:4)], as.numeric)
-#   data$focal <- as.character(data$focal)
-#   
-#   ## Number of Observations ----
-#   Counts <- data[ , -c(1:4)] # remove first four columns (plot, fitness proxy, focal, focalID)
-#   Counts[Counts > 0] <- 1 # set all counts/abundances which indicate presence to 1
-#   Counts <- split(Counts, data$focal) # split into groups by species
-#   obs <- do.call(rbind, lapply(Counts, colSums))
-#   
-#   ## Integers ----
-#   stan.data$S <- length(unique(data$focal))  # number of species
-#   stan.data$N <- nrow(data)                  # number of observations
-#   stan.data$K <- ncol(data[ , -c(1:4)])      # number of neighbours
-#   stan.data$I <- length(obs[obs > 0])        # number of observed interactions
-#   stan.data$Z <- stan.data$S*stan.data$K   # total number of possible interactions         
-#   
-#   ## Vectors ----
-#   stan.data$species_ID <- as.numeric(as.factor(data$focal)) # numeric indices for focal species
-#   stan.data$fitness <- data[, Fitness] # fitness proxy
-#   
-#   ## Indices for Interactions in Alpha-Matrix ----
-#   stan.data$inter_per_species <- obs # first count the number of interactions observed for each focal species
-#   stan.data$inter_per_species[stan.data$inter_per_species > 0] <- 1 # set all interactions to one
-#   stan.data$inter_per_species <- rowSums(stan.data$inter_per_species)
-#   stan.data$inter_per_species_perneighbour <- obs
-#   stan.data$icol <- unlist(apply(ifelse(obs > 0, T, F), 1, which)) # column index in the alpha matrix for each observed interaction
-#   names(stan.data$icol) <- NULL
-#   stan.data$icol <- as.vector(stan.data$icol)
-#   stan.data$irow <- rep(1, stan.data$inter_per_species[[1]]) # begin the row index
-#   stan.data$istart <- 1 # begin the start and end indices for the vector of interactions per species 
-#   stan.data$iend <- stan.data$inter_per_species[[1]] # begin the start and end indices for the vector of interactions per species 
-#   for(s in 2:stan.data$S){ # populate indices for all the other species
-#     # starting position of a_ij's for i in the vector of observed interactions (ie the 1st 'j')
-#     stan.data$istart[s] <- sum(stan.data$inter_per_species[s-1:s])+1
-#     # end position of a_ij's for i in the vector of observed interactions (the last 'j')
-#     stan.data$iend[s] <-  sum(stan.data$inter_per_species[1:s])
-#     # row index in the alpha matrix for each observed interaction
-#     stan.data$irow <- c(stan.data$irow, rep(s, stan.data$inter_per_species[[s]]))
-#   }
-#   
-#   ## Model Matrix ----
-#   stan.data$X <- as.matrix(data[ , -c(1:4)])  
-#   
-#   ## Number of observations per interaction ----
-#   stan.data$Obs <- as.vector(apply(obs, 1, c)) # vector of the number of observations for each interactions
-#   stan.data$Obs <- stan.data$Obs[stan.data$Obs > 0] # remove unobserved interactions
-#   
-#   return(stan.data)
-# }
-
-# CHECKING DATA ============================================================
-## KUSCH -------------------------------------------------------------------
+## CHECKING DATA -----------------------------------------------------------
 FUN.DataDims <- function(data = NULL){
   message(paste0('Number of observations = ', data$N))
-  message(paste0('Number of focal species = ', data$N_Species))
-  message(paste0('Number of neighbouring species = ', data$N_Neigh))
-  message(paste0('Number of observed interactions = ', data$N_Interac))
-  message(paste0('Number of sites = ', data$N_Sites))
-  message(paste0('Number of environmental variables = ', data$N_Clim))
+  message(paste0('Number of focal species = ', data$S))
+  message(paste0('Number of neighbouring species = ', data$K))
+  message(paste0('Number of observed interactions = ', data$I))
 }
 
-# ## BIMLER ------------------------------------------------------------------
-# Fun_PreCheck <- function(data = NULL){
-#   key_speciesID <- unique(data$focal)
-#   key_neighbourID <- colnames(data[ , -c(1:4)])
-#   # message(paste0('Dataset selected: ', comm))
-#   message(paste0('Fitness data dimensions = ', dim(data)[1], ', ', dim(data)[2]))
-#   message(paste0('Number of focals = ', length(key_speciesID)))
-#   message(paste0('Number of neighbours = ', length(key_neighbourID)))
-# }
+## MODEL SPECIFICATION -----------------------------------------------------
+# model specified in 'joint_model.stan'
 
-################# MODEL SPECIFICATION ###
-# model specified in 'Supplement - StanModel.stan'
-
-################# MODEL INSPECTION ###
+## MODEL EVALUATION --------------------------------------------------------
 # This function takes the posterior draws for interaction estimates extracted from 
 # the STAN model fit object and returns a focal x neighbour x sample array of all 
 # interactions, both observed (IFM) and unrealised (RIM)
@@ -376,9 +259,11 @@ return_inter_array <- function(joint.post.draws, # posterior draws extracted usi
   # sample from the 80% posterior interval for each interaction
   ifm_inters <- apply(ifm_inters, 2, function(x) {
     inter <- x[x > quantile(x, 0.1) & x < quantile(x, 0.9)]
-    if (length(inter > 0)) {sample(inter, size = 1000)} 
+    if (length(inter > 0)) {sample(inter, size = 1e2)} 
     else {rep(0, 1000)} # this is for those unobserved interactions (0)
   })
+  ifm_inters <- do.call(cbind, ifm_inters) # this returns IF model estimates for every possible interaction 
+  # every column is an interaction
   
   # calculate unrealised interactions 
   rim_inters <- lapply(c(1:length(focalID)), function(x) {
