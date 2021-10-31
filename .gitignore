@@ -3,19 +3,13 @@
 
 # But not these files...
 !.gitignore
-!D0_Manuscript.pdf
-!D0_Manuscript.Rmd
-!2 - Codes/*
-!2 - Codes/*/*
-!PhD.bib
-!PhD_Style.tex
 
 # ...even if they are in subdirectories
 !*/
 !*/*/
 !*/*/*/
 !*.R
-
+!*.stan
 
 X - PersonalSettings.R
 
