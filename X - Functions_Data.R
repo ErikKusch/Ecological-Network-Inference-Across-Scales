@@ -1,7 +1,6 @@
 #' ####################################################################### #
 #' PROJECT: [PhD; X - DATA FUNCTIONALITY] 
 #' CONTENTS: 
-#'  - Functionality for retrieval of environmental data for observations
 #'  - Functionality for phylogenetic distance calculation for differing levels of taxonomic resolution
 #'  DEPENDENCIES:
 #'  - 
@@ -88,10 +87,11 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
   }
   # Average out the phylogeny ----
   class(Phylo_ls) <- "multiPhylo"
-  Avg_phylo <- phytools::averageTree(Phylo_ls)
+  # Avg_phylo <- phytools::averageTree(Phylo_ls)
   ## calculate distance aggregates
   PhyloDist_mean <- apply(simplify2array(PhyloDist_ls), 1:2, mean) # build mean of all distances
   PhyloDist_SD <- apply(simplify2array(PhyloDist_ls), 1:2, sd) # build sd of all distances
+  Avg_phylo <- ape::nj(PhyloDist_mean) # build average tree
   ## combine it into one object
   Phylo_ls <- list(Avg_Phylo = Avg_phylo,
                    Dist_Mean = PhyloDist_mean,
