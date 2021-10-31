@@ -81,12 +81,6 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
   if(length(substring(list.files(Dir.Plots.FIA), 1, 2)) != 0){
     if(unique(substring(list.files(Dir.Plots.FIA), 1, 2) %in% states) != TRUE){stop("Your FIA directory contains data for more than the states you asked to analyse here. Please remove these or change the state argument here to include these files already present.")}
   }
-  # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
-  if(sum(Check_vec) != 0){
-    FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Plots.FIA, nCores = nCores) # download FIA state data and save it to the FIA directory
-  }else{
-    FIA_df <- rFIA::readFIA(dir = Dir.Plots.FIA) # load all of the data in the FIA directory
-  }
   
   ## BIOME SHAPE PREPARATION
   FIAMerged_shp <- aggregate(FIA_shp, by = "BIOME") # Merge shapes according to biome type
@@ -94,6 +88,12 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
   
   ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
   if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
+    # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
+    if(sum(Check_vec) != 0){
+      FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Plots.FIA, nCores = nCores) # download FIA state data and save it to the FIA directory
+    }else{
+      FIA_df <- rFIA::readFIA(dir = Dir.Plots.FIA) # load all of the data in the FIA directory
+    }
     FIABiomass_df <- biomass(db = FIA_df, # which data base to use
                              polys = FIAMerged_shp,
                              bySpecies = TRUE, # group by Species
@@ -118,14 +118,14 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
                                      FIABiomass_df)
       Uncert_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_UC", ECV_vec[Clim_Iter], ".nc"))), 
                                      FIABiomass_df)
-      pb <- txtProgressBar(min = 0, max = ncol(Extrac_temp), style = 3) 
-      for(Plot_Iter in 1:ncol(Extrac_temp)){
+      pb <- txtProgressBar(min = 0, max = nrow(Extrac_temp), style = 3) 
+      for(Plot_Iter in 1:nrow(Extrac_temp)){
         ## only retain the last ten years leading up to data collection
         Need_seq <- seq.Date(as.Date(paste0(FIABiomass_df[Plot_Iter, ]$YEAR-10, "-01-01")), 
                              as.Date(paste0(FIABiomass_df[Plot_Iter, ]$YEAR, "-01-01")), 
                              by = "month")
-        Time_seq <- Extrac_temp[which(Layer_seq %in% Need_seq), Plot_Iter]
-        Uncert_seq <- Uncert_temp[which(Layer_seq %in% Need_seq), Plot_Iter]
+        Time_seq <- Extrac_temp[Plot_Iter, which(Layer_seq %in% Need_seq)]
+        Uncert_seq <- Uncert_temp[Plot_Iter, which(Layer_seq %in% Need_seq)]
         FIABiomass_df[Plot_Iter, ECV_vec[Clim_Iter]] <- mean(Time_seq, na.rm = TRUE)
         FIABiomass_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_SD")] <- sd(Time_seq, na.rm = TRUE)
         FIABiomass_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_UC")] <- mean(Uncert_seq, na.rm = TRUE)
@@ -140,7 +140,7 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
   ## PHYLOGENY 
   if(!file.exists(file.path(Dir.Plots, "Phylogeny.RData"))){
     Phylo_ls <- FUN.PhyloDist(FIABiomass_df$SCIENTIFIC_NAME)
-    save(Phylo_ls, file = file.path(Dir.Plots, "Phylogeny.RData"))
+    save(Phylo_ls, file = file.path(Dir.Plots, "PhylogenyAVGTREEFUN.RData"))
   }else{
     load(file.path(Dir.Plots, "Phylogeny.RData"))
   }
@@ -153,28 +153,29 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
   names(FIASplit_ls) <- FIAMerged_shp@data$Names # apply correct names of biomes
   FIASplit_ls <- FIASplit_ls[-c((length(FIASplit_ls)-1):length(FIASplit_ls))] # remove 98 and 99 biome which is barren and limnic
   for(Biome_Iter in 1:length(FIASplit_ls)){
+    stop("rework this to correctly do what the .txt on this screen says")
     BiomeName <- names(FIASplit_ls)[Biome_Iter]
     print(BiomeName)
     if(file.exists(file.path(Dir.Plots, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
     FIAIter_df <- FIASplit_ls[[Biome_Iter]]
-    FIAIter_df <- FIAIter_df[,c("pltID", "BIO_ACRE", "SCIENTIFIC_NAME", "nStems", "YEAR")] # select columns we need
-    colnames(FIAIter_df) <- c("plot", "biomass", "focal", "Number at Plot", "Year") # assign new column names
-    Species_vec <- unique(FIAIter_df$focal) # identify all species names
+    FIAIter_df <- FIAIter_df[,c("pltID", "BIO_ACRE", "SCIENTIFIC_NAME", "nStems", "YEAR", paste0(rep(ECV_vec, each = 3), c("", "_SD", "_UC")))] # select columns we need
+    colnames(FIAIter_df) <- c("plot", "biomass", "taxon", "Number at Plot", "Year", paste0(rep(ECV_vec, each = 3), c("", "_SD", "_UC")), "geometry") # assign new column names
+    Species_vec <- unique(FIAIter_df$taxon) # identify all species names
     Plots_vec <- unique(FIAIter_df$plot) # identify all plot IDs
     Interaction_ls <- as.list(rep(NA, length = length(Plots_vec))) # establish empty list with one slot for each plot
     names(Interaction_ls) <- Plots_vec # set name of the list positions to reflect the plotIDs
     counter <- 1 # create counter to index where to put the data frame created in the loop into the list
     for(Iter_plot in Plots_vec){ # plot loop: loop over all plots
       Iter_df <- FIAIter_df[FIAIter_df$plot == Iter_plot, ] # select data for currently focussed plot
-      Iter_df <- Iter_df[order(Iter_df$Year, Iter_df$focal), ] # sort by year first and then by focal alphabetically in each year
-      # Iter_df <- group_by(.data = Iter_df, .dots=c("focal", "Year")) %>% # group by species
+      Iter_df <- Iter_df[order(Iter_df$Year, Iter_df$taxon), ] # sort by year first and then by taxon alphabetically in each year
+      # Iter_df <- group_by(.data = Iter_df, .dots=c("taxon", "Year")) %>% # group by species
       #   summarise_at(.vars = c("biomass", "Number at Plot"), .funs = median) # summarise biomass and number grouped by species
       
       Counts_mat <- matrix(rep(0, length = dim(Iter_df)[1]*length(Species_vec)), nrow = dim(Iter_df)[1]) # create empty matrix
       colnames(Counts_mat) <- Species_vec # assign column names of species names
       for(k in unique(Iter_df$Year)){
         k_df <- Iter_df[Iter_df$Year == k,] # select data for year at that plot
-        Matches_vec <- base::match(x = k_df$focal, table = Species_vec) # identify position of matches of species names
+        Matches_vec <- base::match(x = k_df$taxon, table = Species_vec) # identify position of matches of species names
         Counts_k <- rep(Iter_df$`Number at Plot`[Iter_df$Year == k], # repeat counts of each species
                         each = sum(Iter_df$Year == k) # as often as there are observations at that plot in that year
         )
@@ -184,8 +185,8 @@ FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCor
       counter <- counter +1 # raise counter
     }
     Interaction_df <- bind_rows(Interaction_ls, .id = "plot") # combine data frames in list elements into one big data frame
-    Interaction_df <- cbind(Interaction_df$plot, Interaction_df$biomass, Interaction_df$focal, Interaction_df$Year, Interaction_df[,6:dim(Interaction_df)[2]])
-    colnames(Interaction_df)[1:4] <- c("plot", "biomass", "focal", "year")
+    Interaction_df <- cbind(Interaction_df$plot, Interaction_df$biomass, Interaction_df$taxon, Interaction_df$Year, Interaction_df[,6:dim(Interaction_df)[2]])
+    colnames(Interaction_df)[1:4] <- c("plot", "biomass", "taxon", "year")
     # Interaction_df <- Interaction_df[-c(which(Interaction_df$biomass == 0)), ] # remove 0 biomass entries
     print(paste("Data dimensions:", paste(dim(Interaction_df), collapse = " & ")))
     save(BiomeName, FIAIter_df, Interaction_df, file = file.path(Dir.Plots, paste0("FIABiome", Biome_Iter, ".RData")))
@@ -218,14 +219,14 @@ for(Model_Iter in 1:length(FIABiomes_fs)){ # 10 for biggest data set
   Test_df <- Interaction_df[Interaction_df$biomass != 0, ]
   
   tmp <- Test_df[, 1:3]
-  tmp$focalID <- with(Test_df, paste(plot, focal, year, sep ="_"))
+  tmp$taxonID <- with(Test_df, paste(plot, taxon, year, sep ="_"))
   Test_df <- cbind(tmp, Test_df[, 4:ncol(Test_df)])
-  colnames(Test_df)[1:5] <- c("plotID", "fit", "focal", "focalID", "time")
+  colnames(Test_df)[1:5] <- c("plotID", "fit", "taxon", "taxonID", "time")
   
   
   Mal_df <- Test_df[,-5] # data frame without time
   
-  OmitCols <- -(which(colnames(Mal_df)[-c(1:4)] %nin% Mal_df$focal)+4)
+  OmitCols <- -(which(colnames(Mal_df)[-c(1:4)] %nin% Mal_df$taxon)+4)
   if(length(OmitCols) != 0){
     Mal_df <- Mal_df[, OmitCols]
   }else{
@@ -241,7 +242,7 @@ for(Model_Iter in 1:length(FIABiomes_fs)){ # 10 for biggest data set
   
   
   ## CHECKING DATA
-  focalID <- unique(Mal_df$focal)
+  taxonID <- unique(Mal_df$taxon)
   neighbourID <- colnames(Mal_df[ , -c(1:4)])
   Fun_PreCheck(data = Mal_df)
   ## RUNNING MODEL
@@ -275,13 +276,13 @@ for(Model_Iter in 1:length(FIABiomes_fs)){ # 10 for biggest data set
       joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = 1000)
   # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
   intrinsic.perf <- log(p.samples$a)
-  colnames(intrinsic.perf) <- focalID
+  colnames(intrinsic.perf) <- taxonID
   inter_mat <- return_inter_array(joint.post.draws, 
                                   response = p.samples$response,
                                   effect = p.samples$effect,
-                                  sort(focalID),
+                                  sort(taxonID),
                                   neighbourID)
-  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
+  # inter_mat is now a 3 dimensional array, where rows = taxons, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
   param.vec <- c('a', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu', 'sigma')
   try(stan_model_check(fit = fit,
                        results_folder = Dir.FIABiome,
