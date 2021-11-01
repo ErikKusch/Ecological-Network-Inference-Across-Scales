@@ -18,7 +18,6 @@ set.seed(42)
 
 ## Sourcing ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 source("0 - Preamble.R")
-source("X - Functions_Plotting.R")
 source("X - Functions_Bayes.R")
 source("X - Functions_Data.R")
 
@@ -154,7 +153,7 @@ if(!file.exists(file.path(Dir.PFTC, "ModelFrames.RData"))){
   Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limiting to phylogeny-recognised species
   ### FITNESS ####
   Weight_df <- Raw_df[Raw_df$trait == "dry_mass_g", c("SiteID", "taxon", "value")] # only dry biomass rows and select only relevant columns for speedier data handling 
-  Weight_cast <- reshape2::dcast(Weight_df, SiteID ~ taxon, value.var = 'value', fun.aggregate = max)
+  Weight_cast <- reshape2::dcast(Weight_df, SiteID ~ taxon, value.var = 'value', fun.aggregate = mean)
   Weight_cast[Weight_cast == -Inf] <- 0
   ## ABUNDANCE ####
   Raw_df <- read.csv(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv")) # load pftc data
@@ -231,7 +230,8 @@ if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
 ## combine SiteID, focal fitness, and neighbour counts
 Index_df <- cbind(ModelFrames_ls$Fitness, 
-                  ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID, ModelFrames_ls$Community$SiteID),  -1])
+                  ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+                                                 ModelFrames_ls$Community$SiteID),  -1])
 
 for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
@@ -263,8 +263,8 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   Stan_model <- stan(file = 'joint_model.stan',
                      data =  StanList_Iter,
                      chains = 1,
-                     warmup = nWarmup*nChains,
-                     iter = nSamples*nChains,
+                     warmup = nWarmup*nChains/2,
+                     iter = nSamples*nChains/2,
                      refresh = 100,
                      control = list(max_treedepth = 10)
   )
