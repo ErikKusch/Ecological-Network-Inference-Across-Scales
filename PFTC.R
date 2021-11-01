@@ -25,7 +25,7 @@ source("X - Functions_Data.R")
 nSamples <- 9000
 nWarmup <- 1000
 nChains <- 4
-thin <- 100
+thin <- 1
 
 # DATA =====================================================================
 message("############ PREPARING DATA")
@@ -59,75 +59,28 @@ if(!file.exists(file.path(Dir.PFTC, "Metadata_df.csv"))){ # bioclimatic data not
   Metadata_df$Year <- 2018 # set observation years to 2018 for all sites (that was the field season most of the data was collected throughout)
   colnames(Metadata_df)[5] <- "Lat"
   colnames(Metadata_df)[6] <- "Lon"
-  
-  ### THIS IS WHERE NEW AND DIFFERENT CLIMATE DATA NEEDS TO BE DOWNLOADED
-  for(Variable_Iter in ECV_vec){
-    if(Variable_Iter == "total_precipitation"){
-      PrecipFix <- TRUE
-    }else{
-      PrecipFix <- FALSE
-    }
-    print(Variable_Iter)
-    ## Download Anylsis Data at Highest Resolution
-    Era5Data_ras <- download_ERA(Variable = Variable_Iter,
-                                 DateStart = "1981-01-01",
-                                 DateStop = paste0(unique(Metadata_df$Year),"-12-31"),
-                                 TResolution = "month",
-                                 TStep = 1,
-                                 API_Key = API_Key,
-                                 API_User = API_User,
-                                 Extent = Metadata_df,
-                                 ID = "SiteID",
-                                 Buffer = 0.1,
-                                 Dir = Dir.Data,
-                                 FileName = paste0(Variable_Iter, "_Data"),
-                                 Cores = Cores,
-                                 TryDown = 42,
-                                 SingularDL = TRUE,
-                                 verbose = FALSE,
-                                 PrecipFix = PrecipFix
-    )
-    ## Download Uncertainty Data
-    Era5Uncert_ras <- download_ERA(Variable = Variable_Iter,
-                                   DataSet = "era5",
-                                   Type = "ensemble_members",
-                                   DateStart = "1981-01-01",
-                                   DateStop = paste0(unique(Metadata_df$Year),"-12-31"),
-                                   TResolution = "month",
-                                   TStep = 1,
-                                   API_Key = API_Key,
-                                   API_User = API_User,
-                                   Extent = Metadata_df,
-                                   Buffer = 0.5,
-                                   ID = "SiteID",
-                                   Dir = Dir.Data,
-                                   FileName = paste0(Variable_Iter, "_Uncert.nc"),
-                                   Cores = parallel::detectCores(),
-                                   TryDown = 42,
-                                   SingularDL = TRUE,
-                                   verbose = FALSE,
-                                   PrecipFix = PrecipFix
-    )
-    Era5Uncert_ras <- stackApply(Era5Uncert_ras, rep(1:(nlayers(Era5Uncert_ras)/10), each = 10), sd)
-    
+  Shp <- KrigR::buffer_Points(Points = Metadata_df, Buffer = 0.1, ID = "SiteID")
+  for(Clim_Iter in 1:length(ECV_vec)){
+    ## climate data download
+    FUN.CLIM(ECV = Clim_Iter, Shp = Shp, Dir = Dir.PFTC)
+    Era5Data_ras <- stack(file.path(Dir.PFTC, paste0(ECV_vec[Clim_Iter], ".nc")))
+    Era5Uncert_ras <- stack(file.path(Dir.PFTC, paste0("UC",  ECV_vec[Clim_Iter], ".nc")))
     ## Extract Data to Locations
     Extract_df <- cbind(Metadata_df$Lon, Metadata_df$Lat)
     colnames(Extract_df) <- c("x", "y")
     Extract_sp <- SpatialPoints(Extract_df)
     Data_mat <- raster::extract(Era5Data_ras, Extract_sp)
     Uncert_mat <- raster::extract(Era5Uncert_ras, Extract_sp)
-    
     ## Save Mean Values to Original Data Source
     Metadata_df$XYZ <- NA
-    colnames(Metadata_df)[ncol(Metadata_df)] <- Variable_Iter
+    colnames(Metadata_df)[ncol(Metadata_df)] <- ECV_vec[Clim_Iter]
     Metadata_df[, ncol(Metadata_df)] <- rowMeans(Data_mat)
     Metadata_df$XYZ <- NA
-    colnames(Metadata_df)[ncol(Metadata_df)] <- paste0(Variable_Iter, "_SD")
+    colnames(Metadata_df)[ncol(Metadata_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
     Metadata_df[, ncol(Metadata_df)] <- apply(Data_mat, 1, sd)
     Metadata_df$XYZ <- NA
-    colnames(Metadata_df)[ncol(Metadata_df)] <- paste0(Variable_Iter, "_UC")
+    colnames(Metadata_df)[ncol(Metadata_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
     Metadata_df[, ncol(Metadata_df)] <- rowMeans(Uncert_mat)
-
     ## writing result
     write.csv(Metadata_df, file.path(Dir.PFTC, "Metadata_df.csv")) 
   }
@@ -137,7 +90,7 @@ if(!file.exists(file.path(Dir.PFTC, "Metadata_df.csv"))){ # bioclimatic data not
   message("Covariate data already retrieved")
   Metadata_df <- read.csv(file.path(Dir.PFTC, "Metadata_df.csv"))[-1] # load the metadata with attached bioclimatic data
 }
-# set this because 2m_temperature is stored as x2_mtemperature in Metadata_df
+# set this because 2m_temperature is stored as x2m_temperature in Metadata_df
 ECV_vec[ECV_vec == "2m_temperature"] <- "X2m_temperature"
 Metadata_df <- Sort.DF(Metadata_df, "SiteID")
 
@@ -191,14 +144,14 @@ if(!file.exists(file.path(Dir.PFTC, "Traits_df.csv"))){
   Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limitting to phylogeny-recognised species
   Traits_df <- data.frame(
     Observation = Raw_df$id,
-                        # Species = Raw_df$taxon,
-                        Traits = Raw_df$trait,
-                        Values = Raw_df$value
-                        # SiteID = Raw_df$SiteID
+    # Species = Raw_df$taxon,
+    Traits = Raw_df$trait,
+    Values = Raw_df$value
+    # SiteID = Raw_df$SiteID
   )
   ## make data frame wide for clearer representation of data
   Traits_df <- reshape(Traits_df, direction = "wide", 
-                     idvar = "Observation", timevar = "Traits")
+                       idvar = "Observation", timevar = "Traits")
   colnames(Traits_df) <- gsub(pattern = "Values.", replacement = "", x = colnames(Traits_df))
   Traits_df$Species <- Raw_df$taxon[match(Traits_df$Observation, Raw_df$id)]
   Traits_df$SiteID <- Raw_df$SiteID[match(Traits_df$Observation, Raw_df$id)]

@@ -223,8 +223,8 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
   }
 }
 
-# FOREST INVENTORY ANALYSIS CLIMATE DATA =================================
-FUN.FIACLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
+# CLIMATE DATA ===========================================================
+FUN.CLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
   PrecipFix <- ifelse(startsWith(ECV_vec[ECV], "total"), TRUE, FALSE)
   if(!file.exists(file.path(Dir, paste0(ECV_vec[ECV], ".nc")))){
     Temp_ras <- download_ERA(Variable = ECV_vec[ECV],
