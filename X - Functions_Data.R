@@ -140,9 +140,9 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
       colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
       FIABiomass_df$XYZ <- NA
       colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
-      Extrac_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_", ECV_vec[Clim_Iter], ".nc"))), 
+      Extrac_temp <- raster::extract(stack(file.path(Dir.Plots, paste0(ECV_vec[Clim_Iter], ".nc"))), 
                                      FIABiomass_df)
-      Uncert_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_UC", ECV_vec[Clim_Iter], ".nc"))), 
+      Uncert_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("UC", ECV_vec[Clim_Iter], ".nc"))), 
                                      FIABiomass_df)
       pb <- txtProgressBar(min = 0, max = nrow(Extrac_temp), style = 3) 
       for(Plot_Iter in 1:nrow(Extrac_temp)){
@@ -226,7 +226,7 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
 # FOREST INVENTORY ANALYSIS CLIMATE DATA =================================
 FUN.FIACLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
   PrecipFix <- ifelse(startsWith(ECV_vec[ECV], "total"), TRUE, FALSE)
-  if(!file.exists(file.path(Dir, paste0("FIA_",  ECV_vec[ECV], ".nc")))){
+  if(!file.exists(file.path(Dir, paste0(ECV_vec[ECV], ".nc")))){
     Temp_ras <- download_ERA(Variable = ECV_vec[ECV],
                              DateStart = "1981-01-01",
                              DateStop = "2020-12-31",
@@ -236,7 +236,7 @@ FUN.FIACLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
                              API_User = API_User,
                              Extent = Shp,
                              Dir = Dir,
-                             FileName = paste0("FIA_",  ECV_vec[ECV]),
+                             FileName = ECV_vec[ECV],
                              Cores = Cores,
                              TryDown = 42,
                              SingularDL = TRUE,
@@ -244,7 +244,7 @@ FUN.FIACLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
                              PrecipFix = PrecipFix
     )
   }
-  if(!file.exists(file.path(Dir, paste0("FIA_UC",  ECV_vec[ECV], ".nc")))){
+  if(!file.exists(file.path(Dir, paste0("UC",  ECV_vec[ECV], ".nc")))){
     Temp_ras <- download_ERA(Variable = ECV_vec[ECV],
                              DataSet = "era5",
                              Type = "ensemble_members",
@@ -256,7 +256,7 @@ FUN.FIACLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
                              API_User = API_User,
                              Extent = Shp,
                              Dir = Dir,
-                             FileName = paste0("FIA_UC",  ECV_vec[ECV]),
+                             FileName = paste0("UC",  ECV_vec[ECV]),
                              Cores = parallel::detectCores(),
                              TryDown = 42,
                              SingularDL = TRUE,
@@ -265,6 +265,6 @@ FUN.FIACLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
     ) 
     print("Aggregating Ensembles")
     Temp_ras <- stackApply(Temp_ras, rep(1:(nlayers(Temp_ras)/10), each = 10), sd, progress = "text")
-    writeRaster(x = Temp_ras, filename = file.path(Dir, paste0("FIA_UC",  ECV_vec[ECV], ".nc")), overwrite = TRUE)
+    writeRaster(x = Temp_ras, filename = file.path(Dir, paste0("UC",  ECV_vec[ECV], ".nc")), overwrite = TRUE)
   }
 } 
