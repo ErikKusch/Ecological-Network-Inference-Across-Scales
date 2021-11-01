@@ -13,293 +13,124 @@
 #' ####################################################################### #
 rm(list=ls())
 
-# PREAMBLE ================================================================
+# PREAMBLE =================================================================
+rm(list=ls())
+set.seed(42)
+
+## Sourcing ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 source("0 - Preamble.R")
 source("0 - ShapeFiles.R")
-source("X - Functions_Data.R")
-source("X - Functions_Plotting.R")
 source("X - Functions_Bayes.R")
-nSamples <- 7000
-nWarmup <- 700
-nChains <- 4
+source("X - Functions_Data.R")
 
-####### CLIMATE DATA RETRIEVAL ---------------------------------------------------------
+## Bayes Settings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+nSamples <- 9000
+nWarmup <- 1000
+nChains <- 4
+thin <- 1
+
+# DATA =====================================================================
+## CLIMATE DATA RETRIEVAL --------------------------------------------------
 ECV_vec <- c("2m_temperature", "volumetric_soil_water_layer_1", "total_precipitation", "potential_evaporation")
 FIA_shp <- crop(FIA_shp, extent(extent(FIA_shp)[1], -59.5, extent(FIA_shp)[3], extent(FIA_shp)[4]))
 if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
-  for(Clim_Iter in 1:length(ECV_vec)){
-    PrecipFix <- ifelse(startsWith(ECV_vec[Clim_Iter], "total"), TRUE, FALSE)
-    if(!file.exists(file.path(Dir.Plots, paste0("FIA_",  ECV_vec[Clim_Iter], ".nc")))){
-      Temp_ras <- download_ERA(Variable = ECV_vec[Clim_Iter],
-                               DateStart = "1981-01-01",
-                               DateStop = "2020-12-31",
-                               TResolution = "month",
-                               TStep = 1,
-                               API_Key = API_Key,
-                               API_User = API_User,
-                               Extent = FIA_shp,
-                               Dir = Dir.Plots,
-                               FileName = paste0("FIA_",  ECV_vec[Clim_Iter]),
-                               Cores = Cores,
-                               TryDown = 42,
-                               SingularDL = TRUE,
-                               verbose = TRUE,
-                               PrecipFix = PrecipFix
-      )
-    }
-    if(!file.exists(file.path(Dir.Plots, paste0("FIA_UC",  ECV_vec[Clim_Iter], ".nc")))){
-      Temp_ras <- download_ERA(Variable = ECV_vec[Clim_Iter],
-                               DataSet = "era5",
-                               Type = "ensemble_members",
-                               DateStart = "1981-01-01",
-                               DateStop = "2020-12-31",
-                               TResolution = "month",
-                               TStep = 1,
-                               API_Key = API_Key,
-                               API_User = API_User,
-                               Extent = FIA_shp,
-                               Dir = Dir.Plots,
-                               FileName = paste0("FIA_UC",  ECV_vec[Clim_Iter]),
-                               Cores = parallel::detectCores(),
-                               TryDown = 42,
-                               SingularDL = TRUE,
-                               verbose = TRUE,
-                               PrecipFix = PrecipFix
-      ) 
-      print("Aggregating Ensembles")
-      Temp_ras <- stackApply(Temp_ras, rep(1:(nlayers(Temp_ras)/10), each = 10), sd, progress = "text")
-      writeRaster(x = Temp_ras, filename = file.path(Dir.Plots, paste0("FIA_UC",  ECV_vec[Clim_Iter], ".nc")), overwrite = TRUE)
-    }
-  } 
-}
-
-
-####### FIA DATA RETRIEVAL ---------------------------------------------------------
-FUN_PlotData_FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
-  ### EXISTENCE CHECK
-  Check_vec <- states %nin% substring(list.files(Dir.Plots.FIA), 1, 2)
-  if(length(substring(list.files(Dir.Plots.FIA), 1, 2)) != 0){
-    if(unique(substring(list.files(Dir.Plots.FIA), 1, 2) %in% states) != TRUE){stop("Your FIA directory contains data for more than the states you asked to analyse here. Please remove these or change the state argument here to include these files already present.")}
-  }
-  
-  ## BIOME SHAPE PREPARATION
-  FIAMerged_shp <- aggregate(FIA_shp, by = "BIOME") # Merge shapes according to biome type
-  FIAMerged_shp@data$Names <- Full_Biomes[match(FIAMerged_shp@data$BIOME, Abbr_Biomes)] # Assign corresponding full text biome names
-  
-  ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
-  if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
-    # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
-    if(sum(Check_vec) != 0){
-      FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Plots.FIA, nCores = nCores) # download FIA state data and save it to the FIA directory
-    }else{
-      FIA_df <- rFIA::readFIA(dir = Dir.Plots.FIA) # load all of the data in the FIA directory
-    }
-    FIABiomass_df <- biomass(db = FIA_df, # which data base to use
-                             polys = FIAMerged_shp,
-                             bySpecies = TRUE, # group by Species
-                             byPlot = TRUE, # group by plot
-                             nCores = nCores,
-                             treeType = "live",
-                             returnSpatial = TRUE
-    )
-    FIABiomass_df<- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
-    
-    ## CLIMATE DATA EXTRACTION 
-    Layer_seq <- seq.Date(as.Date("1981-01-01"), as.Date("2020-12-31"), by = "month")
-    for(Clim_Iter in 1:length(ECV_vec)){
-      print(ECV_vec[Clim_Iter])
-      FIABiomass_df$XYZ <- NA
-      colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- ECV_vec[Clim_Iter]
-      FIABiomass_df$XYZ <- NA
-      colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
-      FIABiomass_df$XYZ <- NA
-      colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
-      Extrac_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_", ECV_vec[Clim_Iter], ".nc"))), 
-                                     FIABiomass_df)
-      Uncert_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("FIA_UC", ECV_vec[Clim_Iter], ".nc"))), 
-                                     FIABiomass_df)
-      pb <- txtProgressBar(min = 0, max = nrow(Extrac_temp), style = 3) 
-      for(Plot_Iter in 1:nrow(Extrac_temp)){
-        ## only retain the last ten years leading up to data collection
-        Need_seq <- seq.Date(as.Date(paste0(FIABiomass_df[Plot_Iter, ]$YEAR-10, "-01-01")), 
-                             as.Date(paste0(FIABiomass_df[Plot_Iter, ]$YEAR, "-01-01")), 
-                             by = "month")
-        Time_seq <- Extrac_temp[Plot_Iter, which(Layer_seq %in% Need_seq)]
-        Uncert_seq <- Uncert_temp[Plot_Iter, which(Layer_seq %in% Need_seq)]
-        FIABiomass_df[Plot_Iter, ECV_vec[Clim_Iter]] <- mean(Time_seq, na.rm = TRUE)
-        FIABiomass_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_SD")] <- sd(Time_seq, na.rm = TRUE)
-        FIABiomass_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_UC")] <- mean(Uncert_seq, na.rm = TRUE)
-        setTxtProgressBar(pb, Plot_Iter)
-      }
-    }
-    saveRDS(FIABiomass_df, file.path(Dir.Plots, "FIABiomes_df.rds"))
-  }else{
-    FIABiomass_df <- readRDS(file.path(Dir.Plots, "FIABiomes_df.rds"))
-  }
-  
-  ## PHYLOGENY 
-  if(!file.exists(file.path(Dir.Plots, "Phylogeny.RData"))){
-    Phylo_ls <- FUN.PhyloDist(FIABiomass_df$SCIENTIFIC_NAME)
-    save(Phylo_ls, file = file.path(Dir.Plots, "PhylogenyAVGTREEFUN.RData"))
-  }else{
-    load(file.path(Dir.Plots, "Phylogeny.RData"))
-  }
-  Phylo_specs <- Phylo_ls$Avg_Phylo$tip.label
-  ## limiting to recognised species
-  FIABiomass_df <- FIABiomass_df[FIABiomass_df$SCIENTIFIC_NAME %in% gsub(pattern = "_", replacement = " ", x =  Phylo_specs), ]
-  
-  ## SPLITTING INTO BIOMES
-  FIASplit_ls <- split(FIABiomass_df, FIABiomass_df$polyID) # extract for each biome to separate data frame
-  names(FIASplit_ls) <- FIAMerged_shp@data$Names # apply correct names of biomes
-  FIASplit_ls <- FIASplit_ls[-c((length(FIASplit_ls)-1):length(FIASplit_ls))] # remove 98 and 99 biome which is barren and limnic
-  for(Biome_Iter in 1:length(FIASplit_ls)){
-    stop("rework this to correctly do what the .txt on this screen says")
-    BiomeName <- names(FIASplit_ls)[Biome_Iter]
-    print(BiomeName)
-    if(file.exists(file.path(Dir.Plots, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
-    FIAIter_df <- FIASplit_ls[[Biome_Iter]]
-    FIAIter_df <- FIAIter_df[,c("pltID", "BIO_ACRE", "SCIENTIFIC_NAME", "nStems", "YEAR", paste0(rep(ECV_vec, each = 3), c("", "_SD", "_UC")))] # select columns we need
-    colnames(FIAIter_df) <- c("plot", "biomass", "taxon", "Number at Plot", "Year", paste0(rep(ECV_vec, each = 3), c("", "_SD", "_UC")), "geometry") # assign new column names
-    Species_vec <- unique(FIAIter_df$taxon) # identify all species names
-    Plots_vec <- unique(FIAIter_df$plot) # identify all plot IDs
-    Interaction_ls <- as.list(rep(NA, length = length(Plots_vec))) # establish empty list with one slot for each plot
-    names(Interaction_ls) <- Plots_vec # set name of the list positions to reflect the plotIDs
-    counter <- 1 # create counter to index where to put the data frame created in the loop into the list
-    for(Iter_plot in Plots_vec){ # plot loop: loop over all plots
-      Iter_df <- FIAIter_df[FIAIter_df$plot == Iter_plot, ] # select data for currently focussed plot
-      Iter_df <- Iter_df[order(Iter_df$Year, Iter_df$taxon), ] # sort by year first and then by taxon alphabetically in each year
-      # Iter_df <- group_by(.data = Iter_df, .dots=c("taxon", "Year")) %>% # group by species
-      #   summarise_at(.vars = c("biomass", "Number at Plot"), .funs = median) # summarise biomass and number grouped by species
-      
-      Counts_mat <- matrix(rep(0, length = dim(Iter_df)[1]*length(Species_vec)), nrow = dim(Iter_df)[1]) # create empty matrix
-      colnames(Counts_mat) <- Species_vec # assign column names of species names
-      for(k in unique(Iter_df$Year)){
-        k_df <- Iter_df[Iter_df$Year == k,] # select data for year at that plot
-        Matches_vec <- base::match(x = k_df$taxon, table = Species_vec) # identify position of matches of species names
-        Counts_k <- rep(Iter_df$`Number at Plot`[Iter_df$Year == k], # repeat counts of each species
-                        each = sum(Iter_df$Year == k) # as often as there are observations at that plot in that year
-        )
-        Counts_mat[Iter_df$Year == k,Matches_vec] <- Counts_k # save counts to right positions in neighbour matrix
-      }
-      Interaction_ls[[counter]] <- cbind(as.data.frame(Iter_df), as.data.frame(Counts_mat)) # combine matrix with biomass data
-      counter <- counter +1 # raise counter
-    }
-    Interaction_df <- bind_rows(Interaction_ls, .id = "plot") # combine data frames in list elements into one big data frame
-    Interaction_df <- cbind(Interaction_df$plot, Interaction_df$biomass, Interaction_df$taxon, Interaction_df$Year, Interaction_df[,6:dim(Interaction_df)[2]])
-    colnames(Interaction_df)[1:4] <- c("plot", "biomass", "taxon", "year")
-    # Interaction_df <- Interaction_df[-c(which(Interaction_df$biomass == 0)), ] # remove 0 biomass entries
-    print(paste("Data dimensions:", paste(dim(Interaction_df), collapse = " & ")))
-    save(BiomeName, FIAIter_df, Interaction_df, file = file.path(Dir.Plots, paste0("FIABiome", Biome_Iter, ".RData")))
+  for(Clim_Iter in ECV_vec){
+    FUN.CLIM(ECV = Clim_Iter, Shp = FIA_shp, Dir = Dir.Plots)
   }
 }
 
-if(sum(file.exists(file.path(Dir.Plots, paste0("FIABiome", 1:12, ".RData")))) != 12){
-  FUN_PlotData_FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores())
+## FIA DATA RETRIEVAL ------------------------------------------------------
+if(sum(file.exists(file.path(Dir.Plots, paste0("FIABiome", 1:13, ".RData")))) != 13){
+  FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores())
 }
-
-################# RUN NETWORK METHOD FOR EACH FIA SUBSET ########################################### --------------------------
-
-# probably only want to run this for 3, 6, 7, 10, 11 ==> c(3,6,7,11)
-# Model_Iter = 11 # or 7&10&11 for high data
 FIABiomes_fs <- list.files(path = Dir.Plots, pattern = "FIABiome")
 
+# ANALYSIS =================================================================
+## IF-REM ------------------------------------------------------------------
+message("############ STARTING IF-REM ANALYSES")
+Dir.IFREM <- file.path(DirEx.Plots, "IF_REM")
+if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
-for(Model_Iter in 1:length(FIABiomes_fs)){ # 10 for biggest data set
-  load(file.path(Dir.Plots, FIABiomes_fs[[Model_Iter]]))
+for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
+  load(file.path(Dir.Plots, FIABiomes_fs[[Treatment_Iter]]))
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+  Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
+  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  sink(file.path(Dir.TreatmentIter, "Biome.txt"))
+  print("BIOME")
   print(BiomeName)
-  print(dim(Interaction_df))
+  print("OBSERVATIONS")
+  print(nrow(ModelFrames_ls$Fitness))
+  print("SPECIES")
+  print(nrow(Phylo_Iter$Dist_Mean))
+  print("SITES")
+  print(nrow(Metadata_df))
+  sink()
   
-  Dir.FIABiome <- file.path(Dir.PlotNets.FIA, FIABiomes_fs[[Model_Iter]])
-  if(dir.exists(Dir.FIABiome)){
-    warning(paste(FIABiomes_fs[[Model_Iter]], "directory already exists. Skipping."))
-    next()
-  }
-  dir.create(Dir.FIABiome)
+  ## combine SiteID, focal fitness, and neighbour counts
+  Index_df <- cbind(ModelFrames_ls$Fitness, 
+                    ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+                                                   ModelFrames_ls$Community$SiteID),  -1])
+
+  ### DATA PREPRATION ####
+  StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
   
-  Test_df <- Interaction_df[Interaction_df$biomass != 0, ]
-  
-  tmp <- Test_df[, 1:3]
-  tmp$taxonID <- with(Test_df, paste(plot, taxon, year, sep ="_"))
-  Test_df <- cbind(tmp, Test_df[, 4:ncol(Test_df)])
-  colnames(Test_df)[1:5] <- c("plotID", "fit", "taxon", "taxonID", "time")
-  
-  
-  Mal_df <- Test_df[,-5] # data frame without time
-  
-  OmitCols <- -(which(colnames(Mal_df)[-c(1:4)] %nin% Mal_df$taxon)+4)
-  if(length(OmitCols) != 0){
-    Mal_df <- Mal_df[, OmitCols]
-  }else{
-    Mal_df <- Mal_df
-  }
-  
-  FIA_StanList <- Fun_StanList(Fitness = "fit", data = Mal_df)
+  ### DATA CHECKS ####
+  FUN.DataDims(data = StanList_Iter)
   
   #### Preferences
   rstan_options(auto_write = TRUE)
   rstan_options(javascript = FALSE)
   options(mc.cores = nChains) 
   
-  
-  ## CHECKING DATA
-  taxonID <- unique(Mal_df$taxon)
-  neighbourID <- colnames(Mal_df[ , -c(1:4)])
-  Fun_PreCheck(data = Mal_df)
-  ## RUNNING MODEL
-  fit <- stan(file = 'Supplement - StanModel.stan',
-              data =  FIA_StanList,               # named list of data
-              chains = nChains,
-              warmup = nWarmup,          # number of warmup iterations per chain
-              iter = nSamples,            # total number of iterations per chain
-              refresh = 100,         # show progress every 'refresh' iterations
-              control = list(max_treedepth = 10)
+  ### Model Execution ----
+  Stan_model <- stan(file = 'joint_model.stan',
+                     data =  StanList_Iter,
+                     chains = 1,
+                     warmup = nWarmup*nChains/2,
+                     iter = nSamples*nChains/2,
+                     refresh = 100,
+                     control = list(max_treedepth = 10)
   )
-  save(fit, file = file.path(Dir.FIABiome, "Model.RData"))
+  save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
   
-  ## MODEL DIAGNOSTICS
+  ### Model Diagnostics ----
   # Get the full posteriors 
-  joint.post.draws <- extract.samples(fit)
+  joint.post.draws <- extract.samples(Stan_model)
   # Select parameters of interest
-  param.vec <- c('a', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu', 'sigma_alph'
-                 # 'disp_dev' # including this one leads to "Error in apply(joint.post.draws[[p]], 2, function(x) { : dim(X) must have a positive length"
-  )
+  param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
   # Draw 1000 samples from the 80% posterior interval for each parameter of interest
   p.samples <- list()
-  p.samples <- sapply(param.vec[param.vec != 'sigma_alph' & param.vec != 'inter_mat'], function(p) {
+  p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
     p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = 1000)
+      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
     })  # this only works for parameters which are vectors
   })
   # there is only one sigma_alph parameter so we must sample differently:
   p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
     joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) & 
-      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = 1000)
+      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
   # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
-  intrinsic.perf <- log(p.samples$a)
-  colnames(intrinsic.perf) <- taxonID
-  inter_mat <- return_inter_array(joint.post.draws, 
+  intrinsic.perf <- log(p.samples$beta_i0)
+  colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
+  inter_mat <- return_inter_array(joint.post.draws = joint.post.draws, 
                                   response = p.samples$response,
                                   effect = p.samples$effect,
-                                  sort(taxonID),
-                                  neighbourID)
-  # inter_mat is now a 3 dimensional array, where rows = taxons, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
-  param.vec <- c('a', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu', 'sigma')
-  try(stan_model_check(fit = fit,
-                       results_folder = Dir.FIABiome,
+                                  focalID = levels(factor(Index_Iter$taxon)),
+                                  neighbourID = colnames(Index_Iter[, -1:-3]))
+  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
+  try(stan_model_check(fit = Stan_model,
+                       results_folder = Dir.TreatmentIter,
                        params = param.vec))
-  # stan_post_pred_check(post.draws = joint.post.draws, # error here on missing data!!!
-  #                       results_folder = Dir.Malyon,
-  #                       stan.data = StanList_ls)
-  # Interactions can now be divided by the appropriate scaling (intrinsic performance, and demographic rates
-  # if a population dynamics model is used) in order to return per capita interaction strengths. 
+  
+  ### Interaction/Association Matrix ----
   Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)  
-  Interaction_mean <- Interaction_mean[, order(colnames(Interaction_mean))] # sort columns
   Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
   diag(Interaction_mean) <- NA
-  Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89) *-1 # need to switch sign of results
-  Interaction_min <- Interaction_hpdi[1,,]
+  Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89)
+  Interaction_min <- -Interaction_hpdi[1,,]
   diag(Interaction_min) <- NA
-  Interaction_max <- Interaction_hpdi[2,,]
+  Interaction_max <- -Interaction_hpdi[2,,]
   diag(Interaction_max) <- NA
   Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
                                     Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
@@ -307,77 +138,145 @@ for(Model_Iter in 1:length(FIABiomes_fs)){ # 10 for biggest data set
                                     Inter_min = as.vector(t(Interaction_min)),
                                     Inter_max = as.vector(t(Interaction_max))
   )
-  # Interactions_Malyon <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
-  # Interactions_igraph <- na.omit(Interactions_Malyon)
+  Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
+  Interactions_IFREM <- na.omit(Interactions_IFREM)
+  save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
   
-  Interactions_DAG <- Interactions_igraph[order(Interactions_igraph$Actor), ]
-  Interactions_DAG <- na.omit(Interactions_DAG)
+  # ### Plotting ####
+  # FUN.PlotNetUncert(Model = inter_mat, Dir = Dir.PlotNets.PFTC, Name = Treatment_Iter)
+} 
+
+## HMSC --------------------------------------------------------------------
+message("############ STARTING HMSC ANALYSES")
+Dir.HMSC <- file.path(DirEx.Plots, "HMSC")
+if(!dir.exists(Dir.HMSC)){dir.create(Dir.HMSC)}
+
+for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
+  load(file.path(Dir.Plots, FIABiomes_fs[[Treatment_Iter]]))
+  ECV_vec[1] <- "X2m_temperature"
+  colnames(Metadata_df) <- gsub(colnames(Metadata_df), pattern = "2m_temperature", replacement = ECV_vec[1])
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+  Dir.TreatmentIter <- file.path(Dir.HMSC, Treatment_Iter)
+  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  sink(file.path(Dir.TreatmentIter, "Biome.txt"))
+  print("BIOME")
+  print(BiomeName)
+  print("OBSERVATIONS")
+  print(nrow(ModelFrames_ls$Fitness))
+  print("SPECIES")
+  print(nrow(Phylo_Iter$Dist_Mean))
+  print("SITES")
+  print(nrow(Metadata_df))
+  sink()
   
-  Signs_DAG <- with(Interactions_DAG, data.frame(
-    Intrer_mean = sign(Inter_mean),
-    Intrer_max = sign(Inter_max),
-    Intrer_min = sign(Inter_min)
-  ))
+  ### DATA PREPRATION ####
+  Phylo_Iter <- Phylo_Iter$Avg_Phylo
+  S <- Metadata_df[, c("SiteID", "YEAR")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
+  X <- Metadata_df[,-1:-2] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
+  Y_BM <- ModelFrames_ls$FitCom[ , -1] # Y: species data
+  Y_AB <- ModelFrames_ls$Community[ , -1] # Y: species data
+  P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL 
+  Tr <- NULL # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL. 
   
-  Interactions_DAG <- Interactions_DAG[abs(apply(Signs_DAG, 1, sum)) == 3, ]
+  ### DATA CHECKS ####
+  if(all(dim(Y_AB) == dim(Y_BM))){print("Community matrices are the same dimensions")}else{stop("Community matrices have unequal dimensions")}
+  if(is.numeric(as.matrix(Y_AB)) || is.logical(as.matrix(Y_AB)) && is.finite(sum(Y_AB, na.rm=TRUE))){print("Species data looks ok")
+  }else{stop("Species data should be numeric and have finite values")}
+  if(any(is.na(S))){stop("study design has NA values - not allowed for")
+  }else{print("study design looks ok")}
+  if(any(is.na(X))){stop("Covariate data has NA values - not allowed for")
+  }else{print("Covariate data looks ok")}
+  if(any(is.na(P))){stop("P has NA values - not allowed for")
+  }else{print("P looks ok")}
+  if(all(sort(P$tip.label) == sort(colnames(Y_AB)))){print("species names in P and SXY match")}else{stop("species names in P and SXY do not match")}
   
-  Interactions_DAG$Actor <- gsub(x = Interactions_DAG$Actor, pattern = " ", replacement = "_")
-  Interactions_DAG$Subject <- gsub(x = Interactions_DAG$Subject, pattern = " ", replacement = "_")
+  ### Model Specification ----
+  ## removing rare species
+  Ypa <- 1*(Y_AB>0) # identify presences (1) and absences (0) in species data
+  ## Model Formulae
+  XFormula <- as.formula(paste0("~", paste(ECV_vec, collapse = " + ")))
+  TrFormula <- NULL
+  ## StudyDesign
+  unique_plot <- paste(S$SiteID, sep="_")
+  studyDesign <- data.frame(site = as.factor(S$SiteID))
+  St <- studyDesign$site
+  rL.site <- HmscRandomLevel(units = levels(St))
+  ## Model Objects
+  Ypa <- 1*(Y_AB>0)
+  Yabu <- Y_AB
+  Yabu[Y_AB==0] <- NA
+  Yabu <- log(Yabu)
+  Ybiom <- Y_BM
+  Ybiom[Y_BM==0] <- NA
+  Ybiom <- log(Ybiom)
+  ## Models
+  m1 <- Hmsc(Y=Ypa, XData = X,  XFormula = XFormula,
+             TrData = Tr,TrFormula = TrFormula,
+             distr="probit",
+             studyDesign=studyDesign,
+             ranLevels={list("site" = rL.site)})
+  m2 <- Hmsc(Y=Yabu, YScale = TRUE,
+             XData = X,  XFormula = XFormula,
+             TrData = Tr,TrFormula = TrFormula,
+             distr="normal",
+             studyDesign=studyDesign,
+             ranLevels={list("site" = rL.site)})
+  m3 <- Hmsc(Y=Ybiom, YScale = TRUE,
+             XData = X,  XFormula = XFormula,
+             TrData = Tr,TrFormula = TrFormula,
+             distr="normal",
+             studyDesign=studyDesign,
+             ranLevels={list("site" = rL.site)})
+  models <- list(m1,m2, m3)
+  modelnames <- c("presence_absence","abundance", "biomass")
   
-  
-  ## Graph Plot
-  Dag_Paths <- paste(paste(Interactions_DAG$Actor, "->", Interactions_DAG$Subject), collapse = " ")
-  dag <- dagitty(x = paste0("dag {", Dag_Paths, "}"))
-  tidy_dag <- tidy_dagitty(dag, layout = "fr")
-  tidy_dag$data$weight <- c(abs(Interactions_DAG$Inter_mean), rep(NA, sum(is.na(tidy_dag$data$direction))))
-  tidy_dag$data$label <- c(round(Interactions_DAG$Inter_mean, 2), rep(NA, sum(is.na(tidy_dag$data$direction))))
-  tidy_dag$data$colour <- c(ifelse(c(Interactions_DAG$Inter_mean) > 0, "green", "red"), rep("white", sum(is.na(tidy_dag$data$direction))))
-  WeightMod <- 1/max(tidy_dag$data$weight, na.rm = TRUE)
-  
-  DAG_plot <- ggplot(tidy_dag, aes(x = x, y = y, xend = xend, yend = yend), layout = "linear") +
-    geom_dag_point(colour = "grey", shape = 18, size = 10) +
-    geom_dag_text(colour = "black", size = 2) +
-    geom_dag_edges_arc(aes(edge_colour = colour, edge_width = exp(weight)*WeightMod)) +
-    # geom_dag_edges_diagonal(aes(edge_colour = colour, edge_width = weight*WeightMod)) + 
-    labs(title = BiomeName, subtitle = "Realised Interaction (Bimler et al. Method") + 
-    theme_dag()
-  ggsave(DAG_plot, units = "cm", width = 32, height = 18, filename = file.path(Dir.FIABiome, "DAG.png"))
-  
-  dag_data <- na.omit(tidy_dag$data)
-  df <- data.frame(
-    A = dag_data$name, 
-    B = dag_data$to)
-  df.g <- graph.data.frame(d = df, directed = TRUE)
-  E(df.g)$weight <- dag_data$weight
-  E(df.g)$label <- dag_data$label
-  E(df.g)$colour <- dag_data$colour
-  
-  igraph_plot <- ggraph(df.g, layout = 'linear', circular = TRUE) + 
-    # geom_edge_arc(aes(col = colour, width = weight*WeightMod, alpha = ..index..)) + 
-    # scale_edge_alpha('Edge direction', guide = 'edge_direction') + 
-    geom_edge_arc(aes(col = colour, width = exp(dag_data$weight)*WeightMod), show.legend = FALSE) + 
-    scale_edge_color_manual(values = rev(unique(dag_data$colour))) +
-    geom_node_point(color = "black", size = 2) + 
-    geom_node_text(aes(label = name),  repel = TRUE)+
-    coord_fixed() + 
-    labs(title = BiomeName, subtitle = "Realised Interaction (Bimler et al. Method)") + 
-    theme_graph()
-  ggsave(igraph_plot, units = "cm", width = 32, height = 32, filename = file.path(Dir.FIABiome, "IGraph.png"))
-  
-  diag(Interaction_mean) <- 0
-  Interaction_mean[abs(sign(Interaction_mean) + sign(Interaction_min) + sign(Interaction_max)) != 3] <- 0
-  
-  
-  
-  fv.colors = colorRampPalette(c("red","white","green")) ## define the color ramp
-  colorlut = fv.colors(100)[c(1,seq(50,100,length.out=99))] ## select colors to use
-  
-  seq(sum(Interaction_mean>0))
-  
-  jpeg(filename = file.path(Dir.FIABiome, "Interactions.jpeg"), units = "cm", width = 32, height = 18, res = 1000)
-  pheatmap(Interaction_mean, display_numbers = T, 
-           color = c("red", "white","green"), 
-           breaks = c(min(Interaction_mean, na.rm = TRUE), -0.01, 0.01, max(Interaction_mean, na.rm = TRUE)), main = "Actors (Columns) x Subject (Rows)",
-           fontsize = 5)
-  dev.off()
-}
+  ### Modelling ----
+  samples_list <- nSamples
+  message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
+  for(HMSC_Iter in 1:length(modelnames)){ # HMSC model loop
+    #### Model Execution ----
+    hmsc_modelname <- modelnames[HMSC_Iter]
+    hmsc_model <- models[[HMSC_Iter]]
+    message(paste0("model = ",hmsc_modelname))
+    filename <- file.path(Dir.TreatmentIter, paste0(hmsc_modelname, ".RData"))
+    if(!file.exists(filename)){
+      hmsc_model <- sampleMcmc(hmsc_model, samples = nSamples, thin = thin,
+                               transient = nWarmup,
+                               nChains = nChains,
+                               nParallel = nChains) 
+      save(hmsc_model,hmsc_modelname,file=filename)
+    }else{
+      load(filename)
+    }
+    
+    ### Model Evaluation ----
+    message("Evaluation")
+    vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
+    ### Interaction/Association Matrix ----
+    Interaction_mean <- vals$`Posterior mean`[,-1]
+    Interaction_ProbPos <- vals$`Pr(x>0)`[,-1]
+    Interaction_ProbNeg <- vals$`Pr(x<0)`[,-1]
+    Partner2 <- c()
+    for(i in 1:(length(colnames(Interaction_mean))-1)){
+      Partner2 <- c(Partner2, colnames(Interaction_mean)[-c(1:i)])
+    }
+    Interactions_igraph <- data.frame(Partner1 = rep(rownames(Interaction_mean), times = (length(colnames(Interaction_mean))-1):0),
+                                      Partner2 = Partner2,
+                                      Inter_mean = t(Interaction_mean)[lower.tri(t(Interaction_mean), diag = FALSE)],
+                                      Inter_ProbPos = t(Interaction_ProbPos)[lower.tri(t(Interaction_ProbPos), diag = FALSE)],
+                                      Inter_ProbNeg = t(Interaction_ProbNeg)[lower.tri(t(Interaction_ProbNeg), diag = FALSE)]
+    )
+    Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ] 
+    save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(Name, "_Interac.RData")))
+  } # end of HMSC model loop
+} # end of HMSC treatment loop
+
+## NETASSOC ----------------------------------------------------------------
+message("############ STARTING NETASSOC ANALYSES")
+Dir.NETASSOC <- file.path(DirEx.Plots, "NETASSOC")
+if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
+
+## COOCCUR -----------------------------------------------------------------
+message("############ STARTING COCCUR ANALYSES")
+Dir.COOCCUR <- file.path(DirEx.Plots, "COCCUR")
+if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
