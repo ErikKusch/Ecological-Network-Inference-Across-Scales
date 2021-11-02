@@ -69,7 +69,8 @@ package_vec <- c(
   "colorspace", # for HMSC evaluation
   "vioplot", # for HMSC evaluation
   "snow", # for HMSC evaluation
-  "corrplot" # for HMSC evaluation
+  "corrplot", # for HMSC evaluation
+  "writexl"
 )
 sapply(package_vec, install.load.package)
 

@@ -46,105 +46,6 @@ if(sum(file.exists(file.path(Dir.Plots, paste0("FIABiome", 1:13, ".RData")))) !=
 FIABiomes_fs <- list.files(path = Dir.Plots, pattern = "FIABiome")
 
 # ANALYSIS =================================================================
-## IF-REM ------------------------------------------------------------------
-message("############ STARTING IF-REM ANALYSES")
-Dir.IFREM <- file.path(DirEx.Plots, "IF_REM")
-if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
-
-for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
-  load(file.path(Dir.Plots, FIABiomes_fs[[Treatment_Iter]]))
-  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
-  Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
-  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  sink(file.path(Dir.TreatmentIter, "Biome.txt"))
-  print("BIOME")
-  print(BiomeName)
-  print("OBSERVATIONS")
-  print(nrow(ModelFrames_ls$Fitness))
-  print("SPECIES")
-  print(nrow(Phylo_Iter$Dist_Mean))
-  print("SITES")
-  print(nrow(Metadata_df))
-  sink()
-  
-  ## combine SiteID, focal fitness, and neighbour counts
-  Index_df <- cbind(ModelFrames_ls$Fitness, 
-                    ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
-                                                   ModelFrames_ls$Community$SiteID),  -1])
-
-  ### DATA PREPRATION ####
-  StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
-  
-  ### DATA CHECKS ####
-  FUN.DataDims(data = StanList_Iter)
-  
-  #### Preferences
-  rstan_options(auto_write = TRUE)
-  rstan_options(javascript = FALSE)
-  options(mc.cores = nChains) 
-  
-  ### Model Execution ----
-  Stan_model <- stan(file = 'joint_model.stan',
-                     data =  StanList_Iter,
-                     chains = 1,
-                     warmup = nWarmup*nChains/2,
-                     iter = nSamples*nChains/2,
-                     refresh = 100,
-                     control = list(max_treedepth = 10)
-  )
-  save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
-  
-  ### Model Diagnostics ----
-  # Get the full posteriors 
-  joint.post.draws <- extract.samples(Stan_model)
-  # Select parameters of interest
-  param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
-  # Draw 1000 samples from the 80% posterior interval for each parameter of interest
-  p.samples <- list()
-  p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
-    p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
-    })  # this only works for parameters which are vectors
-  })
-  # there is only one sigma_alph parameter so we must sample differently:
-  p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
-    joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) & 
-      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
-  # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
-  intrinsic.perf <- log(p.samples$beta_i0)
-  colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
-  inter_mat <- return_inter_array(joint.post.draws = joint.post.draws, 
-                                  response = p.samples$response,
-                                  effect = p.samples$effect,
-                                  focalID = levels(factor(Index_Iter$taxon)),
-                                  neighbourID = colnames(Index_Iter[, -1:-3]))
-  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
-  try(stan_model_check(fit = Stan_model,
-                       results_folder = Dir.TreatmentIter,
-                       params = param.vec))
-  
-  ### Interaction/Association Matrix ----
-  Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)  
-  Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
-  diag(Interaction_mean) <- NA
-  Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89)
-  Interaction_min <- -Interaction_hpdi[1,,]
-  diag(Interaction_min) <- NA
-  Interaction_max <- -Interaction_hpdi[2,,]
-  diag(Interaction_max) <- NA
-  Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
-                                    Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
-                                    Inter_mean = as.vector(t(Interaction_mean)),
-                                    Inter_min = as.vector(t(Interaction_min)),
-                                    Inter_max = as.vector(t(Interaction_max))
-  )
-  Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
-  Interactions_IFREM <- na.omit(Interactions_IFREM)
-  save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
-  
-  # ### Plotting ####
-  # FUN.PlotNetUncert(Model = inter_mat, Dir = Dir.PlotNets.PFTC, Name = Treatment_Iter)
-} 
 
 ## HMSC --------------------------------------------------------------------
 message("############ STARTING HMSC ANALYSES")
@@ -270,6 +171,110 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
     save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(Name, "_Interac.RData")))
   } # end of HMSC model loop
 } # end of HMSC treatment loop
+
+# ## IF-REM ------------------------------------------------------------------
+# message("############ STARTING IF-REM ANALYSES")
+# Dir.IFREM <- file.path(DirEx.Plots, "IF_REM")
+# if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
+# 
+# for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
+#   load(file.path(Dir.Plots, FIABiomes_fs[[Treatment_Iter]]))
+#   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+#   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
+#   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+#   sink(file.path(Dir.TreatmentIter, "Biome.txt"))
+#   print("BIOME")
+#   print(BiomeName)
+#   print("OBSERVATIONS")
+#   print(nrow(ModelFrames_ls$Fitness))
+#   print("SPECIES")
+#   print(nrow(Phylo_Iter$Dist_Mean))
+#   print("SITES")
+#   print(nrow(Metadata_df))
+#   sink()
+#   
+#   ## combine SiteID, focal fitness, and neighbour counts
+#   Index_df <- cbind(ModelFrames_ls$Fitness, 
+#                     ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+#                                                    ModelFrames_ls$Community$SiteID),  -1])
+#   Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
+#   Index_df <- Index_df[which(Index_df$value > 0), ]
+#   
+#   ### DATA PREPRATION ####
+#   StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
+#   
+#   ### DATA CHECKS ####
+#   FUN.DataDims(data = StanList_Iter)
+#   
+#   #### Preferences
+#   rstan_options(auto_write = TRUE)
+#   rstan_options(javascript = FALSE)
+#   options(mc.cores = 1) 
+#   
+#   ### Model Execution ----
+#   unlink(file.path(Dir.Base, "joint_model.rds"))
+#   Stan_model <- stan(file = 'joint_model.stan',
+#                      data =  StanList_Iter,
+#                      chains = 1,
+#                      warmup = nWarmup*nChains/2,
+#                      iter = nSamples*nChains/2,
+#                      refresh = 100,
+#                      control = list(max_treedepth = 10),
+#                      model_name = BiomeName
+#   )
+#   save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
+#   
+#   ### Model Diagnostics ----
+#   # Get the full posteriors 
+#   joint.post.draws <- extract.samples(Stan_model)
+#   # Select parameters of interest
+#   param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
+#   # Draw 1000 samples from the 80% posterior interval for each parameter of interest
+#   p.samples <- list()
+#   p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
+#     p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
+#       sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
+#     })  # this only works for parameters which are vectors
+#   })
+#   # there is only one sigma_alph parameter so we must sample differently:
+#   p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
+#     joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) & 
+#       joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
+#   # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
+#   intrinsic.perf <- log(p.samples$beta_i0)
+#   colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
+#   inter_mat <- return_inter_array(joint.post.draws = joint.post.draws, 
+#                                   response = p.samples$response,
+#                                   effect = p.samples$effect,
+#                                   focalID = levels(factor(Index_Iter$taxon)),
+#                                   neighbourID = colnames(Index_Iter[, -1:-3]))
+#   # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
+#   try(stan_model_check(fit = Stan_model,
+#                        results_folder = Dir.TreatmentIter,
+#                        params = param.vec))
+#   
+#   ### Interaction/Association Matrix ----
+#   Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)  
+#   Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
+#   diag(Interaction_mean) <- NA
+#   Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89)
+#   Interaction_min <- -Interaction_hpdi[1,,]
+#   diag(Interaction_min) <- NA
+#   Interaction_max <- -Interaction_hpdi[2,,]
+#   diag(Interaction_max) <- NA
+#   Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
+#                                     Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
+#                                     Inter_mean = as.vector(t(Interaction_mean)),
+#                                     Inter_min = as.vector(t(Interaction_min)),
+#                                     Inter_max = as.vector(t(Interaction_max))
+#   )
+#   Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
+#   Interactions_IFREM <- na.omit(Interactions_IFREM)
+#   save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
+#   
+#   # ### Plotting ####
+#   # FUN.PlotNetUncert(Model = inter_mat, Dir = Dir.PlotNets.PFTC, Name = Treatment_Iter)
+# } 
 
 ## NETASSOC ----------------------------------------------------------------
 message("############ STARTING NETASSOC ANALYSES")
