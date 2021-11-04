@@ -70,7 +70,8 @@ package_vec <- c(
   "vioplot", # for HMSC evaluation
   "snow", # for HMSC evaluation
   "corrplot", # for HMSC evaluation
-  "writexl"
+  "writexl",
+  "cooccur"
 )
 sapply(package_vec, install.load.package)
 

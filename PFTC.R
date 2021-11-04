@@ -444,3 +444,80 @@ if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.PFTC, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
+
+for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+  message(paste("### Treatment:", Treatment_Iter))
+  Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
+  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  
+}
+
+### DATA SUBSETTING ####
+ModelFrames_Iter <- ModelFrames_ls
+
+  if(Treatment_Iter != "ALL"){
+    ModelFrames_Iter$Fitness <- ModelFrames_Iter$Fitness[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+    ## Community Matrices
+    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
+                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
+    )
+    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+  }
+
+mat_Iter <- ModelFrames_Iter$Community[ , -1]
+rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
+mat_Iter[is.na(mat_Iter)] <- 0
+
+Interac_coccurr <- cooccur(mat = mat_Iter, 
+        type = "spp_site", thresh = TRUE, spp_names = TRUE)
+class(Interac_coccurr)
+summary(Interac_coccurr)
+prob.table(Interac_coccurr)
+plot(Interac_coccurr)
+# see here https://griffithdan.github.io/pages/code_and_data/cooccur.html
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
