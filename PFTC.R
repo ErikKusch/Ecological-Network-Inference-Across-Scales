@@ -456,7 +456,6 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
 ModelFrames_Iter <- ModelFrames_ls
 
   if(Treatment_Iter != "ALL"){
-    ModelFrames_Iter$Fitness <- ModelFrames_Iter$Fitness[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
     ## Community Matrices
     Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
                            Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
@@ -468,14 +467,12 @@ ModelFrames_Iter <- ModelFrames_ls
 mat_Iter <- ModelFrames_Iter$Community[ , -1]
 rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
 mat_Iter[is.na(mat_Iter)] <- 0
+mat_Iter[mat_Iter > 1] <- 1
+mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
 
-Interac_coccurr <- cooccur(mat = mat_Iter, 
+Interac_coccurr <- cooccur(mat = t(mat_Iter), 
         type = "spp_site", thresh = TRUE, spp_names = TRUE)
-class(Interac_coccurr)
-summary(Interac_coccurr)
 prob.table(Interac_coccurr)
-plot(Interac_coccurr)
-# see here https://griffithdan.github.io/pages/code_and_data/cooccur.html
 
 
 
