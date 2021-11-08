@@ -102,10 +102,12 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
 
 # FOREST INVENTORY ANALYSIS DATA =========================================
 FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, Dir.FIA = NULL){
+  Dir.Raw <- file.path(Dir.FIA, "Raw")
+  dir.create(Dir.Raw)
   ### EXISTENCE CHECK
-  Check_vec <- states %nin% substring(list.files(Dir.FIA), 1, 2)
-  if(length(substring(list.files(Dir.FIA), 1, 2)) != 0){
-    if(unique(substring(list.files(Dir.FIA), 1, 2) %in% states) != TRUE){stop("Your FIA directory contains data for more than the states you asked to analyse here. Please remove these or change the state argument here to include these files already present.")}
+  Check_vec <- states %nin% substring(list.files(Dir.Raw), 1, 2)
+  if(length(substring(list.files(Dir.Raw), 1, 2)) != 0){
+    if(unique(substring(list.files(Dir.Raw), 1, 2) %in% states) != TRUE){stop("Your FIA directory contains data for more than the states you asked to analyse here. Please remove these or change the state argument here to include these files already present.")}
   }
   
   ## BIOME SHAPE PREPARATION
@@ -113,12 +115,12 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
   FIAMerged_shp@data$Names <- Full_Biomes[match(FIAMerged_shp@data$BIOME, Abbr_Biomes)] # Assign corresponding full text biome names
   
   ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
-  if(!file.exists(file.path(Dir, "FIABiomes_df.rds"))){
+  if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
     # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
     if(sum(Check_vec) != 0){
-      FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.FIA, nCores = nCores) # download FIA state data and save it to the FIA directory
+      FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Raw, nCores = nCores) # download FIA state data and save it to the FIA directory
     }else{
-      FIA_df <- rFIA::readFIA(dir = Dir.FIA) # load all of the data in the FIA directory
+      FIA_df <- rFIA::readFIA(dir = Dir.Raw) # load all of the data in the FIA directory
     }
     FIABiomass_df <- biomass(db = FIA_df, # which data base to use
                              polys = FIAMerged_shp,

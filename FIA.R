@@ -40,10 +40,10 @@ if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
 }
 
 ## FIA DATA RETRIEVAL ------------------------------------------------------
-if(sum(file.exists(file.path(Dir.Region, paste0("FIABiome", 1:13, ".RData")))) != 13){
-  FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores())
+if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", 1:13, ".RData")))) != 13){
+  FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores(), Dir.FIA = Dir.FIA)
 }
-FIABiomes_fs <- list.files(path = Dir.Region, pattern = "FIABiome", Dir.FIA = Dir.FIA)
+FIABiomes_fs <- list.files(path = Dir.FIA, pattern = "FIABiome")
 
 # ANALYSIS =================================================================
 
