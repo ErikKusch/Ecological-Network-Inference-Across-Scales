@@ -17,22 +17,15 @@ Dir.PFTC <- file.path(Dir.Data, "PFTC")
 Dir.Plots <- file.path(Dir.Data, "FIA")
 Dir.Plots.FIA <- file.path(Dir.Plots, "Raw")
 Dir.Observations <- file.path(Dir.Data, "Observations")
-Dir.Ranges <- file.path(Dir.Data, "Ranges")
 Dir.Shapes <- file.path(Dir.Data, "Shapes")
-Dir.Ranges.Amphibians <- file.path(Dir.Ranges, "AMPHIBIANS")
-Dir.Ranges.Reptiles <- file.path(Dir.Ranges, "REPTILES")
-Dir.Ranges.Mammals <- file.path(Dir.Ranges, "TERRESTRIAL_MAMMALS")
-Dir.Ranges.Birds <- file.path(Dir.Ranges, "BIRDS")
-Dir.Ranges.Plants <- file.path(Dir.Ranges, "PLANTS")
-DataDirs <- c(Dir.Data, Dir.Ranges, Dir.Shapes, Dir.PFTC, Dir.Plots, Dir.Plots.FIA, Dir.Observations, Dir.Ranges.Amphibians, Dir.Ranges.Birds, Dir.Ranges.Mammals, Dir.Ranges.Plants, Dir.Ranges.Reptiles)
+DataDirs <- c(Dir.Data, Dir.Shapes, Dir.PFTC, Dir.Plots, Dir.Plots.FIA, Dir.Observations)
 CreateDir <- sapply(DataDirs, function(x) if(!dir.exists(x)) dir.create(x))
 ## EXPORTS ------------------------------------------------------------------
 Dir.Exports <- file.path(Dir.Base, "Exports")
 DirEx.PFTC <- file.path(Dir.Exports, "PFTC")
 DirEx.Plots <- file.path(Dir.Exports, "FIA")
 DirEx.Observations <- file.path(Dir.Exports, "Observations")
-DirEx.Ranges <- file.path(Dir.Exports, "Ranges")
-ExportDirs <- c(Dir.Exports, DirEx.PFTC, DirEx.Plots, DirEx.Observations, DirEx.Ranges)
+ExportDirs <- c(Dir.Exports, DirEx.PFTC, DirEx.Plots, DirEx.Observations)
 CreateDir <- sapply(ExportDirs, function(x) if(!dir.exists(x)) dir.create(x))
 rm(list = c("CreateDir", "ExportDirs", "DataDirs"))
 
@@ -71,7 +64,8 @@ package_vec <- c(
   "snow", # for HMSC evaluation
   "corrplot", # for HMSC evaluation
   "writexl",
-  "cooccur"
+  "cooccur",
+  "netassoc"
 )
 sapply(package_vec, install.load.package)
 
