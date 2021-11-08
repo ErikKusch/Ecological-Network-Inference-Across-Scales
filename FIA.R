@@ -33,17 +33,17 @@ thin <- 1
 ## CLIMATE DATA RETRIEVAL --------------------------------------------------
 ECV_vec <- c("2m_temperature", "volumetric_soil_water_layer_1", "total_precipitation", "potential_evaporation")
 FIA_shp <- crop(FIA_shp, extent(extent(FIA_shp)[1], -59.5, extent(FIA_shp)[3], extent(FIA_shp)[4]))
-if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
-  for(Clim_Iter in ECV_vec){
-    FUN.CLIM(ECV = Clim_Iter, Shp = FIA_shp, Dir = Dir.Plots)
+if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
+  for(Clim_Iter in 1:length(ECV_vec)){
+    FUN.CLIM(ECV = Clim_Iter, Shp = FIA_shp, Dir = Dir.FIA)
   }
 }
 
 ## FIA DATA RETRIEVAL ------------------------------------------------------
-if(sum(file.exists(file.path(Dir.Plots, paste0("FIABiome", 1:13, ".RData")))) != 13){
+if(sum(file.exists(file.path(Dir.Region, paste0("FIABiome", 1:13, ".RData")))) != 13){
   FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores())
 }
-FIABiomes_fs <- list.files(path = Dir.Plots, pattern = "FIABiome")
+FIABiomes_fs <- list.files(path = Dir.Region, pattern = "FIABiome", Dir.FIA = Dir.FIA)
 
 # ANALYSIS =================================================================
 
@@ -53,7 +53,7 @@ Dir.HMSC <- file.path(DirEx.Plots, "HMSC")
 if(!dir.exists(Dir.HMSC)){dir.create(Dir.HMSC)}
 
 for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
-  load(file.path(Dir.Plots, FIABiomes_fs[[Treatment_Iter]]))
+  load(file.path(Dir.Region, FIABiomes_fs[[Treatment_Iter]]))
   ECV_vec[1] <- "X2m_temperature"
   colnames(Metadata_df) <- gsub(colnames(Metadata_df), pattern = "2m_temperature", replacement = ECV_vec[1])
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
@@ -178,7 +178,7 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
 # if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 # 
 # for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
-#   load(file.path(Dir.Plots, FIABiomes_fs[[Treatment_Iter]]))
+#   load(file.path(Dir.Region, FIABiomes_fs[[Treatment_Iter]]))
 #   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
 #   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
 #   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}

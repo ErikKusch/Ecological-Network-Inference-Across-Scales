@@ -101,11 +101,11 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
 }
 
 # FOREST INVENTORY ANALYSIS DATA =========================================
-FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
+FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, Dir.FIA = NULL){
   ### EXISTENCE CHECK
-  Check_vec <- states %nin% substring(list.files(Dir.Plots.FIA), 1, 2)
-  if(length(substring(list.files(Dir.Plots.FIA), 1, 2)) != 0){
-    if(unique(substring(list.files(Dir.Plots.FIA), 1, 2) %in% states) != TRUE){stop("Your FIA directory contains data for more than the states you asked to analyse here. Please remove these or change the state argument here to include these files already present.")}
+  Check_vec <- states %nin% substring(list.files(Dir.FIA), 1, 2)
+  if(length(substring(list.files(Dir.FIA), 1, 2)) != 0){
+    if(unique(substring(list.files(Dir.FIA), 1, 2) %in% states) != TRUE){stop("Your FIA directory contains data for more than the states you asked to analyse here. Please remove these or change the state argument here to include these files already present.")}
   }
   
   ## BIOME SHAPE PREPARATION
@@ -113,12 +113,12 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
   FIAMerged_shp@data$Names <- Full_Biomes[match(FIAMerged_shp@data$BIOME, Abbr_Biomes)] # Assign corresponding full text biome names
   
   ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
-  if(!file.exists(file.path(Dir.Plots, "FIABiomes_df.rds"))){
+  if(!file.exists(file.path(Dir, "FIABiomes_df.rds"))){
     # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
     if(sum(Check_vec) != 0){
-      FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Plots.FIA, nCores = nCores) # download FIA state data and save it to the FIA directory
+      FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.FIA, nCores = nCores) # download FIA state data and save it to the FIA directory
     }else{
-      FIA_df <- rFIA::readFIA(dir = Dir.Plots.FIA) # load all of the data in the FIA directory
+      FIA_df <- rFIA::readFIA(dir = Dir.FIA) # load all of the data in the FIA directory
     }
     FIABiomass_df <- biomass(db = FIA_df, # which data base to use
                              polys = FIAMerged_shp,
@@ -140,9 +140,9 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
       colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
       FIABiomass_df$XYZ <- NA
       colnames(FIABiomass_df)[ncol(FIABiomass_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
-      Extrac_temp <- raster::extract(stack(file.path(Dir.Plots, paste0(ECV_vec[Clim_Iter], ".nc"))), 
+      Extrac_temp <- raster::extract(stack(file.path(Dir.FIA, paste0(ECV_vec[Clim_Iter], ".nc"))), 
                                      FIABiomass_df)
-      Uncert_temp <- raster::extract(stack(file.path(Dir.Plots, paste0("UC", ECV_vec[Clim_Iter], ".nc"))), 
+      Uncert_temp <- raster::extract(stack(file.path(Dir.FIA, paste0("UC", ECV_vec[Clim_Iter], ".nc"))), 
                                      FIABiomass_df)
       pb <- txtProgressBar(min = 0, max = nrow(Extrac_temp), style = 3) 
       for(Plot_Iter in 1:nrow(Extrac_temp)){
@@ -159,17 +159,17 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
       }
     }
     FIABiomass_df <- na.omit(FIABiomass_df) # remove NAs (produced by era5-land not having data for certain plots)
-    saveRDS(FIABiomass_df, file.path(Dir.Plots, "FIABiomes_df.rds"))
+    saveRDS(FIABiomass_df, file.path(Dir.FIA, "FIABiomes_df.rds"))
   }else{
-    FIABiomass_df <- readRDS(file.path(Dir.Plots, "FIABiomes_df.rds"))
+    FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
   }
   
   ## PHYLOGENY 
-  if(!file.exists(file.path(Dir.Plots, "Phylogeny.RData"))){
+  if(!file.exists(file.path(Dir.FIA, "Phylogeny.RData"))){
     Phylo_ls <- FUN.PhyloDist(FIABiomass_df$SCIENTIFIC_NAME)
-    save(Phylo_ls, file = file.path(Dir.Plots, "Phylogeny.RData"))
+    save(Phylo_ls, file = file.path(Dir.FIA, "Phylogeny.RData"))
   }else{
-    load(file.path(Dir.Plots, "Phylogeny.RData"))
+    load(file.path(Dir.FIA, "Phylogeny.RData"))
   }
   Phylo_specs <- Phylo_ls$Avg_Phylo$tip.label
   Phylo_specs <- gsub(pattern = "_", replacement = " ", x =  Phylo_specs)
@@ -185,7 +185,7 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
   for(Biome_Iter in 1:length(FIASplit_ls)){
     BiomeName <- names(FIASplit_ls)[Biome_Iter]
     print(BiomeName)
-    if(file.exists(file.path(Dir.Plots, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
+    if(file.exists(file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
     FIAIter_df <- FIASplit_ls[[Biome_Iter]]
     
     ### Metadata_df ----
@@ -219,7 +219,7 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2){
     Phylo_Iter$Dist_Mean <- Phylo_Iter$Dist_Mean[Pos_Safe, Pos_Safe]
     Phylo_Iter$Dist_SD <- Phylo_Iter$Dist_SD[Pos_Safe, Pos_Safe]
     save(BiomeName, Metadata_df, ModelFrames_ls, Phylo_Iter, 
-         file = file.path(Dir.Plots, paste0("FIABiome", Biome_Iter, ".RData")))
+         file = file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))
   }
 }
 
