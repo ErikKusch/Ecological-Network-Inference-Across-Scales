@@ -332,7 +332,7 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
                                       Inter_ProbNeg = t(Interaction_ProbNeg)[lower.tri(t(Interaction_ProbNeg), diag = FALSE)]
     )
     Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ] 
-    save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(Name, "_Interac.RData")))
+    save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))
   } # end of HMSC model loop
 } # end of HMSC treatment loop
 
@@ -435,44 +435,44 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   # FUN.PlotNetUncert(Model = inter_mat, Dir = Dir.PlotNets.PFTC, Name = Treatment_Iter)
 } 
 
-## NETASSOC ----------------------------------------------------------------
-message("############ STARTING NETASSOC ANALYSES")
-Dir.NETASSOC <- file.path(DirEx.PFTC, "NETASSOC")
-if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
-
-## COOCCUR -----------------------------------------------------------------
-message("############ STARTING COCCUR ANALYSES")
-Dir.COOCCUR <- file.path(DirEx.PFTC, "COCCUR")
-if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
-
-for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
-  message(paste("### Treatment:", Treatment_Iter))
-  Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
-  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  
-}
-
-### DATA SUBSETTING ####
-ModelFrames_Iter <- ModelFrames_ls
-
-  if(Treatment_Iter != "ALL"){
-    ## Community Matrices
-    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
-    )
-    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-  }
-
-mat_Iter <- ModelFrames_Iter$Community[ , -1]
-rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
-mat_Iter[is.na(mat_Iter)] <- 0
-mat_Iter[mat_Iter > 1] <- 1
-mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
-
-Interac_coccurr <- cooccur(mat = t(mat_Iter), 
-        type = "spp_site", thresh = TRUE, spp_names = TRUE)
-prob.table(Interac_coccurr)
+# ## NETASSOC ----------------------------------------------------------------
+# message("############ STARTING NETASSOC ANALYSES")
+# Dir.NETASSOC <- file.path(DirEx.PFTC, "NETASSOC")
+# if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
+# 
+# ## COOCCUR -----------------------------------------------------------------
+# message("############ STARTING COCCUR ANALYSES")
+# Dir.COOCCUR <- file.path(DirEx.PFTC, "COCCUR")
+# if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
+# 
+# for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+#   message(paste("### Treatment:", Treatment_Iter))
+#   Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
+#   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+#   
+# }
+# 
+# ### DATA SUBSETTING ####
+# ModelFrames_Iter <- ModelFrames_ls
+# 
+#   if(Treatment_Iter != "ALL"){
+#     ## Community Matrices
+#     Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
+#                            Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
+#     )
+#     ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+#     ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+#   }
+# 
+# mat_Iter <- ModelFrames_Iter$Community[ , -1]
+# rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
+# mat_Iter[is.na(mat_Iter)] <- 0
+# mat_Iter[mat_Iter > 1] <- 1
+# mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
+# 
+# Interac_coccurr <- cooccur(mat = t(mat_Iter), 
+#         type = "spp_site", thresh = TRUE, spp_names = TRUE)
+# prob.table(Interac_coccurr)
 
 
 

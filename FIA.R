@@ -168,7 +168,7 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
                                       Inter_ProbNeg = t(Interaction_ProbNeg)[lower.tri(t(Interaction_ProbNeg), diag = FALSE)]
     )
     Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ] 
-    save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(Name, "_Interac.RData")))
+    save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))
   } # end of HMSC model loop
 } # end of HMSC treatment loop
 
