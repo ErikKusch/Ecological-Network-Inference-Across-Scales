@@ -147,7 +147,14 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
                                nParallel = nChains) 
       save(hmsc_model,hmsc_modelname,file=filename)
     }else{
+      message("Already sampled")
       load(filename)
+    }
+    
+    
+    if(file.exists(file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))){
+      message("Already evaluated")
+      next()
     }
     
     ### Model Evaluation ----
@@ -193,12 +200,30 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
 #   print(nrow(Metadata_df))
 #   sink()
 #   
-#   ## combine SiteID, focal fitness, and neighbour counts
-#   Index_df <- cbind(ModelFrames_ls$Fitness, 
-#                     ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
-#                                                    ModelFrames_ls$Community$SiteID),  -1])
-#   Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
-#   Index_df <- Index_df[which(Index_df$value > 0), ]
+# ## Simplification by genus
+# # GenusFitness <- ModelFrames_ls$Fitness
+# # GenusFitness$taxon <- sapply(strsplit(GenusFitness$taxon, split = " "), "[[", 1)
+# # GenusFitness <- aggregate(x = GenusFitness$value, 
+# #           by = list(GenusFitness$SiteID, GenusFitness$taxon), 
+# #           FUN = "mean")
+# # colnames(GenusFitness) <- c("SiteID", "taxon", "value")
+# # 
+# # GenusCommunity <- ModelFrames_ls$Community
+# # colnames(GenusCommunity) <- c("SiteID", sapply(strsplit(colnames(GenusCommunity[,-1]), split = " "), "[[", 1))
+# # GenusComm <- as.data.frame(t(rowsum(t(GenusCommunity[, -1]), group = colnames(GenusCommunity)[-1], na.rm = TRUE)))
+# # GenusComm$SiteID <- GenusCommunity$SiteID
+# # ## combine SiteID, focal fitness, and neighbour counts
+# # Index_df <- cbind(GenusFitness,
+# #                   GenusComm[match(GenusFitness$SiteID, GenusComm$SiteID),  -ncol(GenusComm)])
+# # # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
+# # Index_df <- Index_df[which(Index_df$value > 0), ]
+# 
+# # SPecies-Level analysis
+# Index_df <- cbind(ModelFrames_ls$Fitness,
+#                   ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+#                                                  ModelFrames_ls$Community$SiteID),  -1])
+# Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
+# Index_df <- Index_df[which(Index_df$value > 0), ]
 #   
 #   ### DATA PREPRATION ####
 #   StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
