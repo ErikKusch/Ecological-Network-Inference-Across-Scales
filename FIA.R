@@ -310,3 +310,42 @@ if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.Region, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
+
+for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
+  load(file.path(Dir.FIA, FIABiomes_fs[[Treatment_Iter]]))
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+  Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
+  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  sink(file.path(Dir.TreatmentIter, "Biome.txt"))
+  print("BIOME")
+  print(BiomeName)
+  print("OBSERVATIONS")
+  print(nrow(ModelFrames_ls$Fitness))
+  print("SPECIES")
+  print(nrow(Phylo_Iter$Dist_Mean))
+  print("SITES")
+  print(nrow(Metadata_df))
+  sink()
+
+  
+  
+  mat_Iter <- ModelFrames_ls$Community[,-1]
+  rownames(mat_Iter) <- ModelFrames_ls$Community[ , 1]
+  mat_Iter[is.na(mat_Iter)] <- 0
+  mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
+  ### Model Execution ####
+  model_coccurr <- cooccur(mat = t(mat_Iter), 
+                           type = "spp_site", thresh = FALSE, spp_names = TRUE)
+  save(model_coccurr, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  ### Interaction/Association Matrix ----
+  test <- tryCatch(plot(model_coccurr))
+  if(nrow(test$data) != 0){
+    jpeg(file=file.path(Dir.TreatmentIter, "Cooccur_Assocs.jpeg"), width = 32, height = 32, units = "cm", res = 100)
+    print(test)
+    dev.off() 
+  }
+  Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
+  save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) # In standardized form, these values are bounded from -1 to 1, with positive values indicating positive associations and negative values indication negative associations; see 10.18637/jss.v069.c02
+    
+}
+
