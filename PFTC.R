@@ -173,7 +173,8 @@ Phylo_ls$Avg_Phylo <- drop.tip(phy = Phylo_ls$Avg_Phylo, tip = Phylo_ls$Avg_Phyl
 ## TREATMENT IDENTIFICATION ------------------------------------------------
 ## split SiteID so we can identify observations by Site and Treatment separately 
 Treatments_vec <- unique(c(Metadata_df$Site, Metadata_df$Treatment))
-Treatments_vec <- c("ALL", Treatments_vec)
+# Treatments_vec <- c("ALL", Treatments_vec)
+Treatments_vec <- "ALL" # for now just running for all plots at once
 
 # ANALYSIS =================================================================
 ## HMSC --------------------------------------------------------------------
@@ -185,7 +186,6 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
   Dir.TreatmentIter <- file.path(Dir.HMSC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  
   ### DATA SUBSETTING ####
   ModelFrames_Iter <- ModelFrames_ls
   Metadata_Iter <- Metadata_df
@@ -311,8 +311,15 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
                                nParallel = nChains) 
       save(hmsc_model,hmsc_modelname,file=filename)
     }else{
+      message("Already sampled")
       load(filename)
     }
+    
+    
+    if(file.exists(file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))){
+      message("Already evaluated")
+      next()
+      }
     
     ### Model Evaluation ----
     message("Evaluation")
