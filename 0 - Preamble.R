@@ -39,6 +39,7 @@ install.load.package <- function(x) {
 
 package_vec <- c(
   "devtools", # needed for non-cran packages further down
+  "rgeos",
   "readxl", # for reading xlsx files
   "sp", # for handling spatialpolygondataframes
   "rgdal", # for loading shapefiles of species ranges
