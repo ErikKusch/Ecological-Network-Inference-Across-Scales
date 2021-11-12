@@ -13,19 +13,19 @@
 Dir.Base <- getwd() # read out the project directory
 ## DATA ---------------------------------------------------------------------
 Dir.Data <- file.path(Dir.Base, "Data")
-Dir.PFTC <- file.path(Dir.Data, "PFTC")
+Dir.YFDP <- file.path(Dir.Data, "YFDP")
 Dir.Region <- file.path(Dir.Data, "Regional")
 Dir.FIA <- file.path(Dir.Data, "RAW_FIA")
 Dir.Observations <- file.path(Dir.Data, "Observations")
 Dir.Shapes <- file.path(Dir.Data, "Shapes")
-DataDirs <- c(Dir.Data, Dir.Shapes, Dir.PFTC, Dir.Region, Dir.FIA, Dir.Observations)
+DataDirs <- c(Dir.Data, Dir.Shapes, Dir.YFDP, Dir.Region, Dir.FIA, Dir.Observations)
 CreateDir <- sapply(DataDirs, function(x) if(!dir.exists(x)) dir.create(x))
 ## EXPORTS ------------------------------------------------------------------
 Dir.Exports <- file.path(Dir.Base, "Exports")
-DirEx.PFTC <- file.path(Dir.Exports, "PFTC")
+DirEx.YFDP <- file.path(Dir.Exports, "YFDP")
 DirEx.Region <- file.path(Dir.Exports, "Region")
 DirEx.Observations <- file.path(Dir.Exports, "Observations")
-ExportDirs <- c(Dir.Exports, DirEx.PFTC, DirEx.Region, DirEx.Observations)
+ExportDirs <- c(Dir.Exports, DirEx.YFDP, DirEx.Region, DirEx.Observations)
 CreateDir <- sapply(ExportDirs, function(x) if(!dir.exists(x)) dir.create(x))
 rm(list = c("CreateDir", "ExportDirs", "DataDirs"))
 

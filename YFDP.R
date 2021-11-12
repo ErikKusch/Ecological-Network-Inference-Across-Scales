@@ -1,14 +1,15 @@
 #' ######################################################################## #
 #' PROJECT: [Data Simplification for Network Inference across Scales] 
 #' CONTENTS: 
-#'  - Generate PFTC species-association/-interaction networks
+#'  - Generate YFDP species-association/-interaction networks
 #'  DEPENDENCIES:
 #'  - 0 - Preamble.R
 #'  - X - Functions_Bayes.R
 #'  - X - Functions_Data.R
 #'  - X - Functions_Plotting.R
-#'  - PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv (available from PFTC group efforts; https://osf.io/hjpwt/)
-#'  - PU.10_PFTC3.10_2020_Peru_Coordinates.xlsx (available from PFTC group efforts; https://osf.io/uk85w/)
+#'  - yfdp_CTFS_Census_1_20211109_for_Erik.csv (available through http://yfdp.org/index.html upon request)
+#'  - yfdp_CTFS_Census_2_20211109_for_Erik.csv (available through http://yfdp.org/index.html upon request)
+#'  - YFDP_Tagged_Species_Traits.csv (available here: yfdp.org/Summary/YFDP_Tagged_Species_Traits.csv)
 #' AUTHOR: [Erik Kusch]
 #' ######################################################################## #
 
@@ -29,193 +30,190 @@ thin <- 1
 
 # DATA =====================================================================
 message("############ PREPARING DATA")
-## PHYLOGENY ---------------------------------------------------------------
-#### Bootstrapped Phylogenetic Distance Creation 
-if(!file.exists(file.path(Dir.PFTC, "Phylogeny.RData"))){ # check if phylogenetic distance has already been established
+
+## HOUSEKEEPING ------------------------------------------------------------
+## lookup objects for species acronyms and treatment identifiers
+Species_df <- data.frame(Short = c("PILA", "ABCO", "CADE", 
+                                   "CONU", "PRVI", "QUKE", 
+                                   "FRCA", "PIPO", "SASC", 
+                                   "ABMA", "PREM", "COSE", 
+                                   "UNKN", "PSME", "COCOC"),
+                         Long = c("Pinus lambertiana", "Abies concolor", "Calocedrus decurrens",
+                                  "Cornus nuttallii", "Prunus virginiana", "Quercus kelloggii",
+                                  "Frangula californica", "Pinus ponderosa", "Salix scouleriana",
+                                  "Abies magnifica", "Prunus emarginata", "Cornus sericea", 
+                                  "Unknown", "Pseudotsuga menziesii", "Corylus cornuta")
+)
+Treatments_ls <- list(Name = c("Pre-Fire", "Post-Fire"),
+                      File = c("yfdp_CTFS_Census_1_20211109_for_Erik.csv",
+                               "yfdp_CTFS_Census_2_20211109_for_Erik.csv")
+)
+
+## REFOMRATTING RAW DATA ---------------------------------------------------
+for(Treatment_Iter in 1:length(Treatments_ls$Name)){
+  message(paste("Preparing data for", Treatments_ls$Name[Treatment_Iter], "treatment"))
+  Raw_df <- read.csv(file.path(Dir.YFDP, Treatments_ls$File[Treatment_Iter]))
+  Raw_df <- Raw_df[Raw_df$SPECIES != "UNKN", ]
+  YFDP_df <- data.frame(SiteID = Raw_df$QUADRAT,
+                        taxon = Raw_df$SPECIES,
+                        value = Raw_df$DBH,
+                        Lon = Raw_df$UTM_X,
+                        Lat = Raw_df$UTM_Y,
+                        Year = year(Raw_df$DATE))
+  YFDP_df$taxon <- Species_df$Long[match(YFDP_df$taxon, Species_df$Short)]
+  YFDP_df[, c("Lon", "Lat")] <- ConvertCoordinates(YFDP_df$Lon, YFDP_df$Lat)
+  write.csv(YFDP_df, file = file.path(Dir.YFDP, paste0(Treatments_ls$Name[Treatment_Iter], ".csv")))
+}
+
+## GENERATING PHYLOGENY ---------------------------------------------------
+if(!file.exists(file.path(Dir.YFDP, "Phylogeny.RData"))){
+  Metadata1_df <- read.csv(file.path(Dir.YFDP, paste0(Treatments_ls$Name[1], ".csv")))
+  Metadata2_df <- read.csv(file.path(Dir.YFDP, paste0(Treatments_ls$Name[2], ".csv")))
+  Metadata_df <- rbind(Metadata1_df, Metadata2_df)
   message("Generating phylogeny")
-  download.file(url = "https://osf.io/hjpwt/download", 
-                destfile = file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv"), mode = "wb")
-  Raw_df <- read.csv(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv")) # load pftc data
-  
-  Phylo_ls <- FUN.PhyloDist(SpeciesNames = Raw_df$taxon) # get phylogenetic distance with mixed species-/genus-pool
-  save(Phylo_ls, file = file.path(Dir.PFTC, "Phylogeny.RData")) # save phylo dist and sd
-  unlink(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv"))
-}else{ # if phylo has already been established prior
+  Phylo_ls <- FUN.PhyloDist(SpeciesNames = Metadata_df$taxon)
+  save(Phylo_ls, file = file.path(Dir.YFDP, "Phylogeny.RData"))
+}else{
   message("Phylogeny already generated")
-  load(file.path(Dir.PFTC, "Phylogeny.RData")) # load object containing phylo distance
+  load(file.path(Dir.YFDP, "Phylogeny.RData"))
 }
 Phylo_Specs <- gsub(pattern = "_", replacement = " ", x =  Phylo_ls$Avg_Phylo$tip.label)
 Phylo_ls$Avg_Phylo$tip.label <- Phylo_Specs
 
 ## META & CLIMATE DATA ----------------------------------------------------
 ECV_vec <- c("2m_temperature", "volumetric_soil_water_layer_1", "total_precipitation", "potential_evaporation")
-if(!file.exists(file.path(Dir.PFTC, "Metadata_df.csv"))){ # bioclimatic data not established yet
+if(sum(file.exists(file.path(Dir.YFDP, paste0(Treatments_ls$Name, "_Metadata.csv")))) < length(Treatments_ls$Name)){ # bioclimatic data not established yet
   message("Obtaining covariate data")
-  download.file(url = "https://osf.io/uk85w/download", 
-                destfile = file.path(Dir.PFTC, "PU.10_PFTC3.10_2020_Peru_Coordinates.xlsx"), mode = "wb")
-  Metadata_df <- as.data.frame(readxl::read_xlsx(file.path(Dir.PFTC, "PU.10_PFTC3.10_2020_Peru_Coordinates.xlsx"))) # read metadata file, available here https://osf.io/uk85w/
-  Metadata_df <- Metadata_df[-which(is.na(Metadata_df$PlotID)), ]
-  Metadata_df$SiteID <- with(Metadata_df, paste(Site, Treatment, PlotID, sep = "_")) # create ID column which combines site, treatment, and plotid
-  Metadata_df$Year <- 2018 # set observation years to 2018 for all sites (that was the field season most of the data was collected throughout)
-  colnames(Metadata_df)[5] <- "Lat"
-  colnames(Metadata_df)[6] <- "Lon"
-  Shp <- KrigR::buffer_Points(Points = Metadata_df, Buffer = 0.1, ID = "SiteID")
+  Metadata1_df <- read.csv(file.path(Dir.YFDP, paste0(Treatments_ls$Name[1], ".csv")))
+  Metadata1_df$Census <- "Pre"
+  Metadata2_df <- read.csv(file.path(Dir.YFDP, paste0(Treatments_ls$Name[2], ".csv")))
+  Metadata2_df$Census <- "Post"
+  Metadata_df <- rbind(Metadata1_df, Metadata2_df)
+  Metadata_df$X <- 1:nrow(Metadata_df)
+  
+  ## CLIMATE DATA DOWNLOAD
+  Shp <- KrigR::buffer_Points(Points = Metadata_df, Buffer = 0.1, ID = "X")
   for(Clim_Iter in 1:length(ECV_vec)){
-    ## climate data download
-    FUN.CLIM(ECV = Clim_Iter, Shp = Shp, Dir = Dir.PFTC)
-    Era5Data_ras <- stack(file.path(Dir.PFTC, paste0(ECV_vec[Clim_Iter], ".nc")))
-    Era5Uncert_ras <- stack(file.path(Dir.PFTC, paste0("UC",  ECV_vec[Clim_Iter], ".nc")))
-    ## Extract Data to Locations
-    Extract_df <- cbind(Metadata_df$Lon, Metadata_df$Lat)
-    colnames(Extract_df) <- c("x", "y")
-    Extract_sp <- SpatialPoints(Extract_df)
-    Data_mat <- raster::extract(Era5Data_ras, Extract_sp)
-    Uncert_mat <- raster::extract(Era5Uncert_ras, Extract_sp)
-    ## Save Mean Values to Original Data Source
-    Metadata_df$XYZ <- NA
-    colnames(Metadata_df)[ncol(Metadata_df)] <- ECV_vec[Clim_Iter]
-    Metadata_df[, ncol(Metadata_df)] <- rowMeans(Data_mat)
-    Metadata_df$XYZ <- NA
-    colnames(Metadata_df)[ncol(Metadata_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
-    Metadata_df[, ncol(Metadata_df)] <- apply(Data_mat, 1, sd)
-    Metadata_df$XYZ <- NA
-    colnames(Metadata_df)[ncol(Metadata_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
-    Metadata_df[, ncol(Metadata_df)] <- rowMeans(Uncert_mat)
-    ## writing result
-    write.csv(Metadata_df, file.path(Dir.PFTC, "Metadata_df.csv")) 
+    FUN.CLIM(ECV = Clim_Iter, Shp = Shp, Dir = Dir.YFDP)
   }
-  unlink(file.path(Dir.PFTC, "PU.10_PFTC3.10_2020_Peru_Coordinates.xlsx"))
-  unlink(file.path(Dir.Data, list.files(Dir.Data, pattern = ".nc")))
+  coordinates(Metadata_df) <- ~Lon+Lat
+  
+  ## CLIMATE DATA EXTRACTION 
+  Layer_seq <- seq.Date(as.Date("1981-01-01"), as.Date("2020-12-31"), by = "month")
+  for(Clim_Iter in 1:length(ECV_vec)){
+    print(ECV_vec[Clim_Iter])
+    Metadata_df$XYZ <- NA
+    names(Metadata_df)[ncol(Metadata_df)] <- ECV_vec[Clim_Iter]
+    Metadata_df$XYZ <- NA
+    names(Metadata_df)[ncol(Metadata_df)] <- paste0(ECV_vec[Clim_Iter], "_SD")
+    Metadata_df$XYZ <- NA
+    names(Metadata_df)[ncol(Metadata_df)] <- paste0(ECV_vec[Clim_Iter], "_UC")
+    Extrac_temp <- raster::extract(stack(file.path(Dir.YFDP, paste0(ECV_vec[Clim_Iter], ".nc"))), 
+                                   Metadata_df)
+    Uncert_temp <- raster::extract(stack(file.path(Dir.YFDP, paste0("UC", ECV_vec[Clim_Iter], ".nc"))),
+                                   Metadata_df)
+    pb <- txtProgressBar(min = 0, max = nrow(Extrac_temp), style = 3) 
+    for(Plot_Iter in 1:nrow(Extrac_temp)){
+      ## only retain the last ten years leading up to data collection
+      Need_seq <- seq.Date(as.Date(paste0(Metadata_df[Plot_Iter, ]$Year-10, "-01-01")), 
+                           as.Date(paste0(Metadata_df[Plot_Iter, ]$Year, "-01-01")), 
+                           by = "month")
+      Time_seq <- Extrac_temp[Plot_Iter, which(Layer_seq %in% Need_seq)]
+      Uncert_seq <- Uncert_temp[Plot_Iter, which(Layer_seq %in% Need_seq)]
+      Metadata_df[Plot_Iter, ECV_vec[Clim_Iter]] <- mean(Time_seq, na.rm = TRUE)
+      Metadata_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_SD")] <- sd(Time_seq, na.rm = TRUE)
+      Metadata_df[Plot_Iter, paste0(ECV_vec[Clim_Iter], "_UC")] <- mean(Uncert_seq, na.rm = TRUE)
+      setTxtProgressBar(pb, Plot_Iter)
+    }
+  }
+  
+  ## average by plot and census
+  Metadata_df <- aggregate(. ~ SiteID + Census, 
+                           data = as.data.frame(Metadata_df[,c(-1,-3:-5)]), 
+                           FUN = mean)
+  
+  ## break apart by Census column
+  Metadata_ls <- split(Metadata_df, Metadata_df$Census)
+  names(Metadata_ls) <- sort(Treatments_ls$Name)
+  
+  ## writing results
+  sapply(names(Metadata_ls), 
+    function (x) write.csv(Metadata_ls[[x]], file=file.path(Dir.YFDP, paste0(x, "_Metadata.csv")))
+    )
 }else{ # bioclimatic data has been established
   message("Covariate data already retrieved")
-  Metadata_df <- read.csv(file.path(Dir.PFTC, "Metadata_df.csv"))[-1] # load the metadata with attached bioclimatic data
 }
 # set this because 2m_temperature is stored as x2m_temperature in Metadata_df
 ECV_vec[ECV_vec == "2m_temperature"] <- "X2m_temperature"
-Metadata_df <- Sort.DF(Metadata_df, "SiteID")
 
 ## MODEL DATA FRAMES -------------------------------------------------------
-if(!file.exists(file.path(Dir.PFTC, "ModelFrames.RData"))){
+if(sum(file.exists(file.path(Dir.YFDP, paste0(Treatments_ls$Name, "_ModelFrames.RData")))) < length(Treatments_ls$Name)){
   message("Readying model data frames")
-  download.file(url = "https://osf.io/hjpwt/download", 
-                destfile = file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv"), mode = "wb")
-  Raw_df <- read.csv(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv")) # load pftc data
-  Raw_df <- Raw_df[-which(is.na(Raw_df$plot_id)), ]
-  Raw_df$SiteID <- with(Raw_df, paste(site, treatment, plot_id, sep = "_")) # create SiteID index
-  Raw_df <- Raw_df[-which(Raw_df$SiteID %nin% Metadata_df$SiteID), ]
-  Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limiting to phylogeny-recognised species
-  ### FITNESS ####
-  Weight_df <- Raw_df[Raw_df$trait == "dry_mass_g", c("SiteID", "taxon", "value")] # only dry biomass rows and select only relevant columns for speedier data handling 
-  Weight_cast <- reshape2::dcast(Weight_df, SiteID ~ taxon, value.var = 'value', fun.aggregate = mean)
-  Weight_cast[Weight_cast == -Inf] <- 0
-  ## ABUNDANCE ####
-  Raw_df <- read.csv(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv")) # load pftc data
-  Raw_df <- Raw_df[-which(is.na(Raw_df$plot_id)), ]
-  Raw_df$SiteID <- with(Raw_df, paste(site, treatment, plot_id, sep = "_")) # create SiteID index
-  Raw_df <- Raw_df[-which(Raw_df$SiteID %nin% Metadata_df$SiteID), ]
-  Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limitting to phylogeny-recognised species
-  Abund_df <- Raw_df[,c("SiteID", "taxon", "individual_nr")] # limit data to necessary parts
-  Abund_cast <- reshape2::dcast(Abund_df, SiteID ~ taxon, value.var = 'individual_nr', fun.aggregate = max)
-  Abund_cast[Abund_cast == -Inf] <- 0
-  Abund_cast <- Abund_cast[ , colnames(Abund_cast) %in% colnames(Weight_cast)]
-  ## LIST MERGING ####
-  ModelFrames_ls <- list(
-    Fitness = Weight_df,
-    FitCom = Weight_cast,
-    Community = Abund_cast
-  )
-  save(ModelFrames_ls, file = file.path(Dir.PFTC, "ModelFrames.RData"))
-  unlink(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv"))
+  for(Treatment_Iter in 1:length(Treatments_ls$Name)){
+    message(paste("Preparing data for", Treatments_ls$Name[Treatment_Iter], "treatment"))
+    Raw_df <- read.csv(file.path(Dir.YFDP, paste0(Treatments_ls$Name[Treatment_Iter], ".csv")))
+    Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limiting to phylogeny-recognised species
+    ### FITNESS ####
+    Weight_df <- Raw_df[ , c("SiteID", "taxon", "value")] # only dry biomass rows and select only relevant columns for speedier data handling 
+    Weight_cast <- reshape2::dcast(Weight_df, SiteID ~ taxon, value.var = 'value', fun.aggregate = mean)
+    ## ABUNDANCE ####
+    Abund_cast <- dcast(Raw_df, SiteID ~ taxon, fun.aggregate = length)
+    ## LIST MERGING ####
+    ModelFrames_ls <- list(
+      Fitness = Weight_df,
+      FitCom = Weight_cast,
+      Community = Abund_cast
+    )
+    save(ModelFrames_ls, file = file.path(Dir.YFDP, paste0(Treatments_ls$Name[Treatment_Iter], "_ModelFrames.RData")))
+  }
 }else{
   message("Model data frames already compiled")
-  load(file.path(Dir.PFTC, "ModelFrames.RData"))
 }
 
 ## FUNCTIONAL TRAITS -------------------------------------------------------
-## download PFTC data if needed
-if(!file.exists(file.path(Dir.PFTC, "Traits_df.csv"))){
+## download YFDP data if needed
+if(!file.exists(file.path(Dir.YFDP, "Traits_df.csv"))){
   message("Obtaining trait data")
-  download.file(url = "https://osf.io/hjpwt/download", 
-                destfile = file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv"), mode = "wb")
-  Raw_df <- read.csv(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv")) #
-  Raw_df <- Raw_df[-which(is.na(Raw_df$plot_id)), ]
-  Raw_df$SiteID <- with(Raw_df, paste(site, treatment, plot_id, sep = "_")) # create SiteID index
-  Raw_df <- Raw_df[-which(Raw_df$SiteID %nin% Metadata_df$SiteID), ]
+  Raw_df <- read.csv(file.path(Dir.YFDP, "YFDP_Tagged_Species_Traits.csv"))
+  Raw_df$taxon <- Species_df$Long[match(Raw_df$CODE, Species_df$Short)]
+  Raw_df[!is.na(Raw_df$taxon), ]
   Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limitting to phylogeny-recognised species
   Traits_df <- data.frame(
-    Observation = Raw_df$id,
-    # Species = Raw_df$taxon,
-    Traits = Raw_df$trait,
-    Values = Raw_df$value
-    # SiteID = Raw_df$SiteID
+    taxon = Raw_df$taxon,
+    Shape = Raw_df$SHAPE,
+    SLA = Raw_df$SLA,
+    LEAF_C = Raw_df$LEAF_C,
+    LEAF_N = Raw_df$LEAF_N,
+    LEAF_Life = Raw_df$LEAF_LIFE
   )
-  ## make data frame wide for clearer representation of data
-  Traits_df <- reshape(Traits_df, direction = "wide", 
-                       idvar = "Observation", timevar = "Traits")
-  colnames(Traits_df) <- gsub(pattern = "Values.", replacement = "", x = colnames(Traits_df))
-  Traits_df$Species <- Raw_df$taxon[match(Traits_df$Observation, Raw_df$id)]
-  Traits_df$SiteID <- Raw_df$SiteID[match(Traits_df$Observation, Raw_df$id)]
-  ## Remove species not recognized by taxonomy here
-  Traits_df <- Traits_df[Traits_df$Species %in% Phylo_Specs, ]
-  write.csv(Traits_df, file = file.path(Dir.PFTC, "Traits_df.csv"))
-  unlink(file.path(Dir.PFTC, "PFTC3-Puna-PFTC5_Peru_2018-2020_LeafTraits_clean.csv"))
+  Traits_df <- Traits_df[order(Traits_df$taxon),]
+  write.csv(Traits_df, file = file.path(Dir.YFDP, "Traits_df.csv"))
 }else{
   message("Trait data already obtained")
-  Traits_df <- read.csv(file.path(Dir.PFTC, "Traits_df.csv"))[ , -1]
 }
-
-## SITEID MATCHING ---------------------------------------------------------
-# we don't have measures at some of the sites. Here, we remove these sites from the metadata frame
-Metadata_df <- Metadata_df[Metadata_df$SiteID %in% ModelFrames_ls$FitCom$SiteID, ]
-if(sum(ModelFrames_ls$FitCom$SiteID != Metadata_df$SiteID)){stop("ModelFrames and Metadata Frame are not in the same order")}
-Phylo_ls$Avg_Phylo <- drop.tip(phy = Phylo_ls$Avg_Phylo, tip = Phylo_ls$Avg_Phylo$tip.label[Phylo_ls$Avg_Phylo$tip.label %nin% colnames(ModelFrames_ls$FitCom)[-1]])
-
-## TREATMENT IDENTIFICATION ------------------------------------------------
-## split SiteID so we can identify observations by Site and Treatment separately 
-Treatments_vec <- unique(c(Metadata_df$Site, Metadata_df$Treatment))
-# Treatments_vec <- c("ALL", Treatments_vec)
-Treatments_vec <- "ALL" # for now just running for all plots at once
 
 # ANALYSIS =================================================================
 ## HMSC --------------------------------------------------------------------
 message("############ STARTING HMSC ANALYSES")
-Dir.HMSC <- file.path(DirEx.PFTC, "HMSC")
+Dir.HMSC <- file.path(DirEx.YFDP, "HMSC")
 if(!dir.exists(Dir.HMSC)){dir.create(Dir.HMSC)}
 
-for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
   Dir.TreatmentIter <- file.path(Dir.HMSC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  ### DATA SUBSETTING ####
+  ### DATA LOADING ####
+  load(file.path(Dir.YFDP, paste0(Treatment_Iter, "_ModelFrames.RData")))
   ModelFrames_Iter <- ModelFrames_ls
-  Metadata_Iter <- Metadata_df
+  Metadata_Iter <- read.csv(file.path(Dir.YFDP, paste0(Treatment_Iter, "_Metadata.csv")))
   Phylo_Iter <- Phylo_ls$Avg_Phylo
-  Traits_Iter <- Traits_df
-  
-  if(Treatment_Iter != "ALL"){
-    ## Fitness List
-    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$Fitness$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(ModelFrames_Iter$Fitness$SiteID, "_"), "[[", 1)
-    )
-    ModelFrames_Iter$Fitness <- ModelFrames_Iter$Fitness[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ## Community Matrices
-    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
-    )
-    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ## Metadata 
-    Treat_df <- data.frame(Treatment = sapply(str_split(Metadata_Iter$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(Metadata_Iter$SiteID, "_"), "[[", 1)
-    )
-    Metadata_Iter <- Metadata_Iter[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-  }
-  Traits_Iter <- aggregate(. ~ Species, data = Traits_Iter[,c(-1,-10)], FUN = mean)
-  rownames(Traits_Iter) <- Traits_Iter$Species
+  Traits_Iter <- read.csv(file.path(Dir.YFDP, "Traits_df.csv"))[,-1]
+  rownames(Traits_Iter) <- Traits_Iter$taxon
+  Traits_Iter <- Traits_Iter[,-1]
   
   ### DATA PREPRATION ####
-  S <- Metadata_Iter[ , c("SiteID", "Site", "Treatment", "PlotID", "Lat", "Lon")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
-  X <- Metadata_Iter[ , c("SiteID", "Site", "Treatment", "PlotID", "Elevation", ECV_vec)] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
+  S <- Metadata_Iter[ , c("SiteID", "Lat", "Lon")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
+  X <- Metadata_Iter[ , c("SiteID", ECV_vec)] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
   Y_BM <- ModelFrames_Iter$FitCom[ , -1] # Y: species data
   Y_AB <- ModelFrames_Iter$Community[ , -1] # Y: species data
   P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL 
@@ -249,23 +247,15 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   # Tr <- droplevels(Tr[-rarespecies,])
   # P <- drop.tip(P, rarespecies) 
   ## recoding treatments
-  TreatN <- vector(mode="numeric", length=nrow(X))
-  TreatN[X$Treatment=="C"] <- 0
-  TreatN[X$Treatment=="B"] <- 1
-  TreatN[X$Treatment=="BB"] <- 2
-  TreatN[X$Treatment=="NB"] <- 3
-  X$TreatN = factor(TreatN, ordered = TRUE)
-  X <- X[, c("TreatN", "Elevation", ECV_vec)]
+  X <- X[, c(ECV_vec)]
   ## Model Formulae
-  XFormula <- as.formula(paste("~ TreatN + Elevation", paste(ECV_vec, collapse = " + "), sep = " + "))
-  TrFormula <- ~log(plant_height_cm) + leaf_area_cm2 + leaf_thickness_mm
+  XFormula <- as.formula(paste("~ ", paste(ECV_vec, collapse = " + "), sep = " + "))
+  TrFormula <- ~SLA + LEAF_C + LEAF_N + LEAF_Life
   ## StudyDesign
-  unique_plot <- paste(S$Site, S$Plot, sep="_") # Spatial coordinates are included, but are clustered at the five sites, and by treatment within sites. Other S data are Site (n=5) and within-site and treatment plots (1-5). Elevation is already in the X table.
-  studyDesign <- data.frame(site = as.factor(S$Site), unique_plot = as.factor(unique_plot))
+  unique_plot <- S$SiteID 
+  studyDesign <- data.frame(site = as.factor(S$Site))
   St <- studyDesign$site
   rL.site <- HmscRandomLevel(units = levels(St))
-  Pl <- studyDesign$unique_plot
-  rL.plot <- HmscRandomLevel(units = levels(Pl))
   ## Model Objects
   Ypa <- 1*(Y_AB>0)
   Yabu <- Y_AB
@@ -279,21 +269,21 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
              TrData = Tr,TrFormula = TrFormula,
              distr="probit",
              studyDesign=studyDesign,
-             ranLevels={list("site" = rL.site, "unique_plot" = rL.plot)})
+             ranLevels={list("site" = rL.site)})
   m2 <- Hmsc(Y=Yabu, YScale = TRUE,
              XData = X,  XFormula = XFormula,
              TrData = Tr,TrFormula = TrFormula,
              distr="normal",
              studyDesign=studyDesign,
-             ranLevels={list("site" = rL.site, "unique_plot" = rL.plot)})
+             ranLevels={list("site" = rL.site)})
   m3 <- Hmsc(Y=Ybiom, YScale = TRUE,
              XData = X,  XFormula = XFormula,
              TrData = Tr,TrFormula = TrFormula,
              distr="normal",
              studyDesign=studyDesign,
-             ranLevels={list("site" = rL.site, "unique_plot" = rL.plot)})
+             ranLevels={list("site" = rL.site)})
   models <- list(m1,m2, m3)
-  modelnames <- c("presence_absence","abundance", "biomass")
+  modelnames <- c("presence_absence","abundance", "diametre")
   
   ### Modelling ----
   samples_list <- nSamples
@@ -345,7 +335,7 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
 
 ## IF-REM ------------------------------------------------------------------
 message("############ STARTING IF-REM ANALYSES")
-Dir.IFREM <- file.path(DirEx.PFTC, "IF_REM")
+Dir.IFREM <- file.path(DirEx.YFDP, "IF_REM")
 if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
 ## combine SiteID, focal fitness, and neighbour counts
@@ -441,7 +431,7 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
 
 ## NETASSOC ----------------------------------------------------------------
 message("############ STARTING NETASSOC ANALYSES")
-Dir.NETASSOC <- file.path(DirEx.PFTC, "NETASSOC")
+Dir.NETASSOC <- file.path(DirEx.YFDP, "NETASSOC")
 if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 
 for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
@@ -480,7 +470,7 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
 
 ## COOCCUR -----------------------------------------------------------------
 message("############ STARTING COCCUR ANALYSES")
-Dir.COOCCUR <- file.path(DirEx.PFTC, "COCCUR")
+Dir.COOCCUR <- file.path(DirEx.YFDP, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
 
 for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop

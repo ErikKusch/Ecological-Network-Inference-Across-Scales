@@ -10,11 +10,6 @@
 # PHYLOGENETIC DISTANCE ==================================================
 FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
   verbatim <- TRUE
-  ## Object Creation ----
-  Phylo_ls <- as.list(rep(NA, Boot)) # empty list to put distance matrices in
-  PhyloDist_ls <- as.list(rep(NA, Boot)) # empty list to put distance matrices in
-  pb <- txtProgressBar(min = 0, max = Boot, style = 3)
-  
   ## Species Name Identification ----
   SpeciesNames <- unique(gsub(pattern = " " , replacement = "_", x = SpeciesNames)) # make sure that binary nomenclature is separated by underscores
   Status <- rep(3, length(SpeciesNames)) # this tracks at which level data was matched with phylogeny, 3 indexes failure
@@ -38,7 +33,13 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
     message(paste("These species are:", paste(Failed_Spec, collapse = ", ")))
   }
   
+  ## Object Creation ----
+  if(length(Recognised_Gen) ==0){Boot <- 1}
+  Phylo_ls <- as.list(rep(NA, Boot)) # empty list to put distance matrices in
+  PhyloDist_ls <- as.list(rep(NA, Boot)) # empty list to put distance matrices in
+  
   ## Phylogeny Creation Loop ----
+  pb <- txtProgressBar(min = 0, max = Boot, style = 3)
   for(Phylo_Boot in 1:Boot){
     verbatim <- ifelse(Phylo_Boot == 1, TRUE, FALSE) # output of phylo function only on first iteration
     ### Random Sampling of Genus-level species ----
@@ -75,7 +76,11 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
     phylo_phylo <- hush(V.PhyloMaker::phylo.maker(sp.list = phylo_df, scenarios = "S3"))
     tree <- phylo_phylo$scenario.3
     tree$edge.length <-  tree$edge.length + 0.001
-    tree$tip.label <- names(Phylo_Spec[match(tree$tip.label, Phylo_Spec)])
+    if(is.null(names(Phylo_Spec[match(tree$tip.label, Phylo_Spec)]))){
+      tree$tip.label <- Phylo_Spec[match(tree$tip.label, Phylo_Spec)]
+    }else{
+      tree$tip.label <- names(Phylo_Spec[match(tree$tip.label, Phylo_Spec)]) 
+    }
     
     ### Phylogenetic Distance ----
     phylo_dist <- ape::cophenetic.phylo(tree)
@@ -91,7 +96,11 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
   ## calculate distance aggregates
   PhyloDist_mean <- apply(simplify2array(PhyloDist_ls), 1:2, mean) # build mean of all distances
   PhyloDist_SD <- apply(simplify2array(PhyloDist_ls), 1:2, sd) # build sd of all distances
-  Avg_phylo <- ape::nj(PhyloDist_mean) # build average tree
+  if(Boot == 1){
+    Avg_phylo <- Phylo_ls[[1]]
+  }else{
+    Avg_phylo <- ape::nj(PhyloDist_mean) # build average tree 
+  }
   ## combine it into one object
   Phylo_ls <- list(Avg_Phylo = Avg_phylo,
                    Dist_Mean = PhyloDist_mean,
@@ -270,3 +279,21 @@ FUN.CLIM <- function(ECV = NULL, Shp = NULL, Dir = NULL){
     writeRaster(x = Temp_ras, filename = file.path(Dir, paste0("UC",  ECV_vec[ECV], ".nc")), overwrite = TRUE)
   }
 } 
+
+# UTM TO LAT/LON =========================================================
+# converts zone 11 (Yosemite longitude band) utm coordinates into lat/lon
+ConvertCoordinates <- function(easting,northing) {
+  easting <- as.numeric(easting)
+  northing <- as.numeric(northing)
+  wgs84 <- "+init=epsg:4326"
+  bng <- '+proj=utm +zone=11 +datum=WGS84 +units=m +no_defs '
+  out <- cbind(easting,northing)
+  mask <- !is.na(easting)
+  sp <-  sp::spTransform(sp::SpatialPoints(list(easting[mask],northing[mask]),
+                                           proj4string = sp::CRS(bng)
+  ),
+  sp::CRS(wgs84)
+  )
+  out[mask,]<-sp@coords
+  out
+}
