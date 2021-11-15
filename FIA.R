@@ -308,6 +308,7 @@ if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 
 ### Null model ranges ----
 if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
+  FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
   load(file.path(Dir.FIA, "Ranges_poly.RData"))
 }else{
   FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
@@ -320,25 +321,55 @@ if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
 }
 
 ### Analysis loop ----
-for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
-  message(paste("### Treatment:", Treatment_Iter))
+for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
+  load(file.path(Dir.FIA, FIABiomes_fs[[Treatment_Iter]]))
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
   Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  ### DATA SUBSETTING ####
-  ModelFrames_Iter <- ModelFrames_ls
-  if(Treatment_Iter != "ALL"){
-    ## Community Matrices
-    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
-    )
-    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+  sink(file.path(Dir.TreatmentIter, "Biome.txt"))
+  print("BIOME")
+  print(BiomeName)
+  print("OBSERVATIONS")
+  print(nrow(ModelFrames_ls$Fitness))
+  print("SPECIES")
+  print(nrow(Phylo_Iter$Dist_Mean))
+  print("SITES")
+  print(nrow(Metadata_df))
+  sink()
+  
+  
+  mat_Iter <- ModelFrames_ls$Community[ , -1]
+  
+  
+  Sites_sf <- FIABiomass_df[FIABiomass_df$pltID %in% ModelFrames_ls$Community$SiteID , ]
+  Sites_sf <- Sites_sf[!duplicated(Sites_sf$pltID), ]
+  RangesIntersec_sf <- st_intersects(Sites_sf, RangesFIA_spoly)
+  
+  Null_mat <- mat_Iter 
+  Null_mat[] <- 0
+  
+  for(Null_Iter in 1:nrow(Null_mat)){
+    Pres_spec <- RangesFIA_spoly$species[RangesIntersec_sf[Null_Iter][[1]]]
+    Pres_spec <- gsub(Pres_spec, pattern = "_", replacement = " ")
+    Null_mat[Null_Iter, which(colnames(Null_mat) %in% Pres_spec)] <- 1
   }
-  mat_Iter <- ModelFrames_Iter$Community[ , -1]
-  # ModelFrames_Iter$FitCom[, -1]
-  rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
+  
+  rownames(mat_Iter) <- ModelFrames_ls$Community[ , 1]
   mat_Iter[is.na(mat_Iter)] <- 0
-  mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
+  # Removing species without observations
+  Null_mat <- Null_mat[,colSums(mat_Iter) != 0]
+  mat_Iter <- mat_Iter[,colSums(mat_Iter) != 0]
+  # Removing species without range presence
+  mat_Iter <- mat_Iter[,colSums(Null_mat) != 0]
+  Null_mat <- Null_mat[,colSums(Null_mat) != 0]
+  # Removing sites without species
+  Null_mat <- Null_mat[rowSums(mat_Iter)!=0,]
+  mat_Iter <- mat_Iter[rowSums(mat_Iter)!=0,]
+  # Removing sites without ranges
+  mat_Iter <- mat_Iter[rowSums(Null_mat)!=0,]
+  Null_mat <- Null_mat[rowSums(Null_mat)!=0,]
+  
+  # data check
   if(nrow(mat_Iter) < 2){
     sink(file.path(Dir.TreatmentIter, "DataIssue.txt"))
     print("Not enough data")
@@ -347,6 +378,7 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   }
   ### Model Execution ####
   model_netassoc <- make_netassoc_network(obs = t(mat_Iter), 
+                                          nul = t(Null_mat),
                                           plot = FALSE, verbose = FALSE)
   save(model_netassoc, file = file.path(Dir.TreatmentIter, "Model.RData"))
   ### Interaction/Association Matrix ----
