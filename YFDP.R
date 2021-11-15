@@ -252,7 +252,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   X <- X[, c(ECV_vec)]
   ## Model Formulae
   XFormula <- as.formula(paste("~ ", paste(ECV_vec, collapse = " + "), sep = " + "))
-  TrFormula <- ~SLA + LEAF_C + LEAF_N + LEAF_Life
+  TrFormula <- ~SLA + LEAF_C + LEAF_N
   ## StudyDesign
   unique_plot <- S$SiteID 
   studyDesign <- data.frame(site = as.factor(S$Site))
