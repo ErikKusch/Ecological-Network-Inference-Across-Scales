@@ -264,8 +264,9 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   # Yabu[Y_AB==0] <- NA
   # Yabu <- log(Yabu)
   Ybiom <- Y_BM
+  Ybiom[is.na(Ybiom)] <- 0
   # Ybiom[Y_BM==0] <- NA
-  Ybiom <- log(Ybiom)
+  # Ybiom <- log(Ybiom)
   ## Models
   m1 <- Hmsc(Y=Ypa, XData = X,  XFormula = XFormula,
              TrData = Tr,TrFormula = TrFormula,
