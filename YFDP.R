@@ -49,6 +49,29 @@ Treatments_ls <- list(Name = c("Pre-Fire", "Post-Fire"),
                                "yfdp_CTFS_Census_2_20211109_for_Erik.csv")
 )
 
+## FUNCTIONAL TRAITS -------------------------------------------------------
+## download YFDP data if needed
+if(!file.exists(file.path(Dir.YFDP, "Traits_df.csv"))){
+  message("Obtaining trait data")
+  Raw_df <- read.csv(file.path(Dir.YFDP, "YFDP_Tagged_Species_Traits.csv"))
+  Raw_df$taxon <- Species_df$Long[match(Raw_df$CODE, Species_df$Short)]
+  Raw_df[!is.na(Raw_df$taxon), ]
+  Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limitting to phylogeny-recognised species
+  Traits_df <- data.frame(
+    taxon = Raw_df$taxon,
+    Shape = Raw_df$SHAPE,
+    SLA = as.numeric(Raw_df$SLA),
+    LEAF_C = as.numeric(Raw_df$LEAF_C),
+    LEAF_N = as.numeric(Raw_df$LEAF_N)
+  )
+  Traits_df <- Traits_df[!is.na(Traits_df$LEAF_C), ]
+  Traits_df <- Traits_df[order(Traits_df$taxon),]
+  write.csv(Traits_df, file = file.path(Dir.YFDP, "Traits_df.csv"))
+}else{
+  message("Trait data already obtained")
+  Traits_df <- read.csv(file.path(Dir.YFDP, "Traits_df.csv"))[,-1]
+}
+
 ## REFOMRATTING RAW DATA ---------------------------------------------------
 for(Treatment_Iter in 1:length(Treatments_ls$Name)){
   message(paste("Preparing data for", Treatments_ls$Name[Treatment_Iter], "treatment"))
@@ -62,6 +85,7 @@ for(Treatment_Iter in 1:length(Treatments_ls$Name)){
                         Year = year(Raw_df$DATE))
   YFDP_df$taxon <- Species_df$Long[match(YFDP_df$taxon, Species_df$Short)]
   YFDP_df[, c("Lon", "Lat")] <- ConvertCoordinates(YFDP_df$Lon, YFDP_df$Lat)
+  YFDP_df <- YFDP_df[YFDP_df$taxon %in% Traits_df$taxon, ]
   write.csv(YFDP_df, file = file.path(Dir.YFDP, paste0(Treatments_ls$Name[Treatment_Iter], ".csv")))
 }
 
@@ -168,28 +192,6 @@ if(sum(file.exists(file.path(Dir.YFDP, paste0(Treatments_ls$Name, "_ModelFrames.
   }
 }else{
   message("Model data frames already compiled")
-}
-
-## FUNCTIONAL TRAITS -------------------------------------------------------
-## download YFDP data if needed
-if(!file.exists(file.path(Dir.YFDP, "Traits_df.csv"))){
-  message("Obtaining trait data")
-  Raw_df <- read.csv(file.path(Dir.YFDP, "YFDP_Tagged_Species_Traits.csv"))
-  Raw_df$taxon <- Species_df$Long[match(Raw_df$CODE, Species_df$Short)]
-  Raw_df[!is.na(Raw_df$taxon), ]
-  Raw_df <- Raw_df[Raw_df$taxon %in% Phylo_Specs, ] # limitting to phylogeny-recognised species
-  Traits_df <- data.frame(
-    taxon = Raw_df$taxon,
-    Shape = Raw_df$SHAPE,
-    SLA = Raw_df$SLA,
-    LEAF_C = Raw_df$LEAF_C,
-    LEAF_N = Raw_df$LEAF_N,
-    LEAF_Life = Raw_df$LEAF_LIFE
-  )
-  Traits_df <- Traits_df[order(Traits_df$taxon),]
-  write.csv(Traits_df, file = file.path(Dir.YFDP, "Traits_df.csv"))
-}else{
-  message("Trait data already obtained")
 }
 
 # ANALYSIS =================================================================
