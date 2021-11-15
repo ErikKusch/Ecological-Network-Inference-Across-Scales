@@ -306,6 +306,49 @@ message("############ STARTING NETASSOC ANALYSES")
 Dir.NETASSOC <- file.path(DirEx.Region, "NETASSOC")
 if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 
+
+FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
+Range_specs <- unique(FIABiomass_df$SCIENTIFIC_NAME)
+Ranges_spoly <- BIEN_ranges_load_species(species = Range_specs)
+Ranges_spoly <- st_as_sf(Ranges_spoly)
+Ranges_spoly <- sf::st_make_valid(Ranges_spoly)
+RangesFIA_spoly <- st_crop(Ranges_spoly, FIA_shp)
+
+for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+  message(paste("### Treatment:", Treatment_Iter))
+  Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
+  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  ### DATA SUBSETTING ####
+  ModelFrames_Iter <- ModelFrames_ls
+  if(Treatment_Iter != "ALL"){
+    ## Community Matrices
+    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
+                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
+    )
+    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
+  }
+  mat_Iter <- ModelFrames_Iter$Community[ , -1]
+  # ModelFrames_Iter$FitCom[, -1]
+  rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
+  mat_Iter[is.na(mat_Iter)] <- 0
+  mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
+  if(nrow(mat_Iter) < 2){
+    sink(file.path(Dir.TreatmentIter, "DataIssue.txt"))
+    print("Not enough data")
+    sink()
+    next()
+  }
+  ### Model Execution ####
+  model_netassoc <- make_netassoc_network(obs = t(mat_Iter), 
+                                          plot = FALSE, verbose = FALSE)
+  save(model_netassoc, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  ### Interaction/Association Matrix ----
+  Interac_df <- model_netassoc$matrix_spsp_ses_thresholded
+  save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) 
+}
+
+
 ## COOCCUR -----------------------------------------------------------------
 message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.Region, "COCCUR")
@@ -327,8 +370,6 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   print(nrow(Metadata_df))
   sink()
 
-  
-  
   mat_Iter <- ModelFrames_ls$Community[,-1]
   rownames(mat_Iter) <- ModelFrames_ls$Community[ , 1]
   mat_Iter[is.na(mat_Iter)] <- 0
@@ -346,6 +387,5 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   }
   Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
   save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) # In standardized form, these values are bounded from -1 to 1, with positive values indicating positive associations and negative values indication negative associations; see 10.18637/jss.v069.c02
-    
 }
 
