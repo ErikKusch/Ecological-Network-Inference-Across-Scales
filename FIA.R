@@ -69,16 +69,16 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   print("SITES")
   print(nrow(Metadata_df))
   sink()
-  
+
   ### DATA PREPRATION ####
   Phylo_Iter <- Phylo_Iter$Avg_Phylo
   S <- Metadata_df[, c("SiteID", "YEAR")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
   X <- Metadata_df[,-1:-2] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
   Y_BM <- ModelFrames_ls$FitCom[ , -1] # Y: species data
   Y_AB <- ModelFrames_ls$Community[ , -1] # Y: species data
-  P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL 
-  Tr <- NULL # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL. 
-  
+  P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL
+  Tr <- NULL # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL.
+
   ### DATA CHECKS ####
   if(all(dim(Y_AB) == dim(Y_BM))){print("Community matrices are the same dimensions")}else{stop("Community matrices have unequal dimensions")}
   if(is.numeric(as.matrix(Y_AB)) || is.logical(as.matrix(Y_AB)) && is.finite(sum(Y_AB, na.rm=TRUE))){print("Species data looks ok")
@@ -90,12 +90,12 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   if(any(is.na(P))){stop("P has NA values - not allowed for")
   }else{print("P looks ok")}
   if(all(sort(P$tip.label) == sort(colnames(Y_AB)))){print("species names in P and SXY match")}else{stop("species names in P and SXY do not match")}
-  
+
   ### Model Specification ----
   ## removing rare species
   Ypa <- 1*(Y_AB>0) # identify presences (1) and absences (0) in species data
   ## Model Formulae
-  XFormula <- as.formula(paste0("~", paste(ECV_vec, collapse = " + ")))
+  XFormula <- as.formula(paste0("~", paste(ECV_vec[1:3], collapse = " + ")))
   TrFormula <- NULL
   ## StudyDesign
   unique_plot <- paste(S$SiteID, sep="_")
@@ -130,7 +130,7 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
              ranLevels={list("site" = rL.site)})
   models <- list(m1,m2, m3)
   modelnames <- c("presence_absence","abundance", "biomass")
-  
+
   ### Modelling ----
   samples_list <- nSamples
   message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
@@ -144,19 +144,19 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
       hmsc_model <- sampleMcmc(hmsc_model, samples = nSamples, thin = thin,
                                transient = nWarmup,
                                nChains = nChains,
-                               nParallel = nChains) 
+                               nParallel = nChains)
       save(hmsc_model,hmsc_modelname,file=filename)
     }else{
       message("Already sampled")
       load(filename)
     }
-    
-    
+
+
     if(file.exists(file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))){
       message("Already evaluated")
       next()
     }
-    
+
     ### Model Evaluation ----
     message("Evaluation")
     vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
@@ -174,7 +174,7 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
                                       Inter_ProbPos = t(Interaction_ProbPos)[lower.tri(t(Interaction_ProbPos), diag = FALSE)],
                                       Inter_ProbNeg = t(Interaction_ProbNeg)[lower.tri(t(Interaction_ProbNeg), diag = FALSE)]
     )
-    Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ] 
+    Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
     save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))
   } # end of HMSC model loop
 } # end of HMSC treatment loop
