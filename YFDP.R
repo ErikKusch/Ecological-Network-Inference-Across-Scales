@@ -251,22 +251,21 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   ## recoding treatments
   X <- X[, c(ECV_vec)]
   ## Model Formulae
-  XFormula <- as.formula(paste("~ ", paste(ECV_vec, collapse = " + "), sep = " + "))
+  XFormula <- as.formula(paste("~ ", paste(ECV_vec[1:3], collapse = " + "), sep = " + "))
   TrFormula <- ~SLA + LEAF_C + LEAF_N
   ## StudyDesign
-  unique_plot <- S$SiteID 
-  studyDesign <- data.frame(site = as.factor(S$Site))
+  unique_plot <- paste(S$SiteID, sep="_")
+  studyDesign <- data.frame(site = as.factor(S$SiteID))
   St <- studyDesign$site
   rL.site <- HmscRandomLevel(units = levels(St))
   ## Model Objects
   Ypa <- 1*(Y_AB>0)
   Yabu <- Y_AB
-  # Yabu[Y_AB==0] <- NA
-  # Yabu <- log(Yabu)
+  Yabu[Y_AB==0] <- NA
+  Yabu <- log(Yabu)
   Ybiom <- Y_BM
-  Ybiom[is.na(Ybiom)] <- 0
-  # Ybiom[Y_BM==0] <- NA
-  # Ybiom <- log(Ybiom)
+  Ybiom[Y_BM==0] <- NA
+  Ybiom <- log(Ybiom)
   ## Models
   m1 <- Hmsc(Y=Ypa, XData = X,  XFormula = XFormula,
              TrData = Tr,TrFormula = TrFormula,
@@ -340,25 +339,17 @@ message("############ STARTING IF-REM ANALYSES")
 Dir.IFREM <- file.path(DirEx.YFDP, "IF_REM")
 if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
-## combine SiteID, focal fitness, and neighbour counts
-Index_df <- cbind(ModelFrames_ls$Fitness, 
-                  ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
-                                                 ModelFrames_ls$Community$SiteID),  -1])
-
-for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  ### DATA LOADING ####
+  load(file.path(Dir.YFDP, paste0(Treatment_Iter, "_ModelFrames.RData")))
   
-  ### DATA SUBSETTING ####
-  Index_Iter <- Index_df
-  if(Treatment_Iter != "ALL"){
-    Treat_df <- data.frame(Treatment = sapply(str_split(Index_Iter$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(Index_Iter$SiteID, "_"), "[[", 1)
-    )
-    Index_Iter <- Index_Iter[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-  }
-  Index_Iter <- Index_Iter[, c(1:3, which(colSums(Index_Iter[, -1:-3]) != 0) + 3)] # ensuring only present species are retained
+  Index_df <- cbind(ModelFrames_ls$Fitness, 
+                    ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+                                                   ModelFrames_ls$Community$SiteID),  -1])
+  Index_Iter <- Index_df[, c(1:3, which(colSums(Index_df[, -1:-3]) != 0) + 3)] # ensuring only present species are retained
   
   ### DATA PREPRATION ####
   StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_Iter)
@@ -429,27 +420,20 @@ for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
   Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
   Interactions_IFREM <- na.omit(Interactions_IFREM)
   save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
-} 
+}
 
 ## NETASSOC ----------------------------------------------------------------
 message("############ STARTING NETASSOC ANALYSES")
 Dir.NETASSOC <- file.path(DirEx.YFDP, "NETASSOC")
 if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 
-for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
   Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  ### DATA SUBSETTING ####
+  ### DATA LOADING ####
+  load(file.path(Dir.YFDP, paste0(Treatment_Iter, "_ModelFrames.RData")))
   ModelFrames_Iter <- ModelFrames_ls
-  if(Treatment_Iter != "ALL"){
-    ## Community Matrices
-    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
-    )
-    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-  }
   mat_Iter <- ModelFrames_Iter$Community[ , -1]
     # ModelFrames_Iter$FitCom[, -1]
   rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
@@ -475,20 +459,13 @@ message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.YFDP, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
 
-for(Treatment_Iter in Treatments_vec){ # HMSC treatment loop
+for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
   Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-  ### DATA SUBSETTING ####
+  ### DATA LOADING ####
+  load(file.path(Dir.YFDP, paste0(Treatment_Iter, "_ModelFrames.RData")))
   ModelFrames_Iter <- ModelFrames_ls
-  if(Treatment_Iter != "ALL"){
-    ## Community Matrices
-    Treat_df <- data.frame(Treatment = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 2),
-                           Site = sapply(str_split(ModelFrames_Iter$FitCom$SiteID, "_"), "[[", 1)
-    )
-    ModelFrames_Iter$FitCom <- ModelFrames_Iter$FitCom[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-    ModelFrames_Iter$Community <- ModelFrames_Iter$Community[with(Treat_df, Site == Treatment_Iter | Treatment == Treatment_Iter), ]
-  }
   mat_Iter <- ModelFrames_Iter$Community[ , -1]
   rownames(mat_Iter) <- ModelFrames_Iter$Community[ , 1]
   mat_Iter[is.na(mat_Iter)] <- 0
