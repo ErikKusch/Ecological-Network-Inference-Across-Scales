@@ -34,46 +34,46 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
   
   ### Model Fit ----
   m <- Model
-  preds <- computePredictedValues(m)
+  preds <- tryCatch(computePredictedValues(m)) # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
   MF <- evaluateModelFit(hM=m, predY=preds)
-  partition <- createPartition(m, nfolds = 2)
-  preds <- computePredictedValues(m,partition=partition, nParallel = nChains)
-  MFCV <- evaluateModelFit(hM=m, predY=preds)
-  WAIC <- computeWAIC(m)
-  filename_out <- file.path(Dir, paste0(Name, "_MF_thin_", as.character(thin),
-                                        "_samples_", as.character(nSamples),
-                                        "_chains_",as.character(nChains),
-                                        ".Rdata"))
-  save(MF,MFCV,WAIC,Name,file = filename_out)
-  jpeg(file=file.path(Dir, paste0(Name, "_model_fit.jpeg")), width = 32, height = 32, units = "cm", res = 100)
-  if(!is.null(MF$TjurR2)){
-    plot(MF$TjurR2,MFCV$TjurR2,xlim=c(-1,1),ylim=c(-1,1),
-         xlab = "explanatory power",
-         ylab = "predictive power",
-         main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": Tjur R2"))
-    abline(0,1)
-    abline(v=0)
-    abline(h=0)
-  }
-  if(!is.null(MF$R2)){
-    plot(MF$R2,MFCV$R2,xlim=c(-1,1),ylim=c(-1,1),
-         xlab = "explanatory power",
-         ylab = "predictive power",
-         main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": R2"))
-    abline(0,1)
-    abline(v=0)
-    abline(h=0)
-  }
-  if(!is.null(MF$AUC)){
-    plot(MF$AUC,MFCV$AUC,xlim=c(0,1),ylim=c(0,1),
-         xlab = "explanatory power",
-         ylab = "predictive power",
-         main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": AUC"))
-    abline(0,1)
-    abline(v=0.5)
-    abline(h=0.5)
-  }
-  dev.off()
+  # partition <- createPartition(m, nfolds = 2)
+  # preds2 <- computePredictedValues(m,partition=partition, nParallel = nChains)  # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
+  # MFCV <- evaluateModelFit(hM=m, predY=preds2)
+  # WAIC <- computeWAIC(m)
+  # filename_out <- file.path(Dir, paste0(Name, "_MF_thin_", as.character(thin),
+  #                                       "_samples_", as.character(nSamples),
+  #                                       "_chains_",as.character(nChains),
+  #                                       ".Rdata"))
+  # save(MF,MFCV,WAIC,Name,file = filename_out)
+  # jpeg(file=file.path(Dir, paste0(Name, "_model_fit.jpeg")), width = 32, height = 32, units = "cm", res = 100)
+  # if(!is.null(MF$TjurR2)){
+  #   plot(MF$TjurR2,MFCV$TjurR2,xlim=c(-1,1),ylim=c(-1,1),
+  #        xlab = "explanatory power",
+  #        ylab = "predictive power",
+  #        main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": Tjur R2"))
+  #   abline(0,1)
+  #   abline(v=0)
+  #   abline(h=0)
+  # }
+  # if(!is.null(MF$R2)){
+  #   plot(MF$R2,MFCV$R2,xlim=c(-1,1),ylim=c(-1,1),
+  #        xlab = "explanatory power",
+  #        ylab = "predictive power",
+  #        main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": R2"))
+  #   abline(0,1)
+  #   abline(v=0)
+  #   abline(h=0)
+  # }
+  # if(!is.null(MF$AUC)){
+  #   plot(MF$AUC,MFCV$AUC,xlim=c(0,1),ylim=c(0,1),
+  #        xlab = "explanatory power",
+  #        ylab = "predictive power",
+  #        main=paste0(Name,", thin = ",as.character(thin),", samples = ",as.character(nSamples),": AUC"))
+  #   abline(0,1)
+  #   abline(v=0.5)
+  #   abline(h=0.5)
+  # }
+  # dev.off()
   
   ### PARAMETER ESTIMATES ----
   pdf(file = file.path(Dir, paste0(Name, "_parameter_estimates.pdf")))
@@ -259,7 +259,7 @@ return_inter_array <- function(joint.post.draws, # posterior draws extracted usi
   # sample from the 80% posterior interval for each interaction
   ifm_inters <- apply(ifm_inters, 2, function(x) {
     inter <- x[x > quantile(x, 0.1) & x < quantile(x, 0.9)]
-    if (length(inter > 0)) {sample(inter, size = 1e2)} 
+    if (length(inter > 0)) {sample(inter, size = dim(response)[1])} 
     else {rep(0, 1000)} # this is for those unobserved interactions (0)
   })
   ifm_inters <- do.call(cbind, ifm_inters) # this returns IF model estimates for every possible interaction 

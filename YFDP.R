@@ -212,15 +212,15 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   Traits_Iter <- read.csv(file.path(Dir.YFDP, "Traits_df.csv"))[,-1]
   rownames(Traits_Iter) <- Traits_Iter$taxon
   Traits_Iter <- Traits_Iter[,-1]
-  
+
   ### DATA PREPRATION ####
   S <- Metadata_Iter[ , c("SiteID", "Lat", "Lon")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
   X <- Metadata_Iter[ , c("SiteID", ECV_vec)] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
   Y_BM <- ModelFrames_Iter$FitCom[ , -1] # Y: species data
   Y_AB <- ModelFrames_Iter$Community[ , -1] # Y: species data
-  P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL 
-  Tr <- Traits_Iter # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL. 
-  
+  P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL
+  Tr <- Traits_Iter # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL.
+
   ### DATA CHECKS ####
   if(all(dim(Y_AB) == dim(Y_BM))){print("Community matrices are the same dimensions")}else{stop("Community matrices have unequal dimensions")}
   if(is.numeric(as.matrix(Y_AB)) || is.logical(as.matrix(Y_AB)) && is.finite(sum(Y_AB, na.rm=TRUE))){print("Species data looks ok")
@@ -236,7 +236,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   if(any(is.na(P))){stop("P has NA values - not allowed for")
   }else{print("P looks ok")}
   if(all(sort(P$tip.label) == sort(colnames(Y_AB)))){print("species names in P and SXY match")}else{stop("species names in P and SXY do not match")}
-  
+
   ### Model Specification ----
   ## removing rare species
   Ypa <- 1*(Y_AB>0) # identify presences (1) and absences (0) in species data
@@ -247,7 +247,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   # Y_BM <- Y_BM[,-rarespecies]
   # Ypa <- Ypa[,-rarespecies]
   # Tr <- droplevels(Tr[-rarespecies,])
-  # P <- drop.tip(P, rarespecies) 
+  # P <- drop.tip(P, rarespecies)
   ## recoding treatments
   X <- X[, c(ECV_vec)]
   ## Model Formulae
@@ -264,7 +264,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   # Yabu[Y_AB==0] <- NA
   # Yabu <- log(Yabu)
   Ybiom <- Y_BM
-  # Ybiom[Y_BM==0] <- NA
+  Ybiom[is.na(Y_BM)] <- 0
   # Ybiom <- log(Ybiom)
   ## Models
   m1 <- Hmsc(Y=Ypa, XData = X,  XFormula = XFormula,
@@ -286,13 +286,17 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
              ranLevels={list("site" = rL.site)})
   models <- list(m1,m2, m3)
   modelnames <- c("presence_absence","abundance", "diametre")
-  
+
   ### Modelling ----
   samples_list <- nSamples
   message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
   for(HMSC_Iter in 1:length(modelnames)){ # HMSC model loop
-    #### Model Execution ----
     hmsc_modelname <- modelnames[HMSC_Iter]
+    if(file.exists(file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))){
+      message("Already computed and evaluated")
+      next()
+    }
+    #### Model Execution ----
     hmsc_model <- models[[HMSC_Iter]]
     message(paste0("model = ",hmsc_modelname))
     filename <- file.path(Dir.TreatmentIter, paste0(hmsc_modelname, ".RData"))
@@ -300,18 +304,13 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
       hmsc_model <- sampleMcmc(hmsc_model, samples = nSamples, thin = thin,
                                transient = nWarmup,
                                nChains = nChains,
-                               nParallel = nChains) 
+                               nParallel = nChains)
       save(hmsc_model,hmsc_modelname,file=filename)
     }else{
-      message("Already sampled")
+      message("Model already compiled")
       load(filename)
     }
-  
-    if(file.exists(file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))){
-      message("Already evaluated")
-      next()
-      }
-    
+
     ### Model Evaluation ----
     message("Evaluation")
     vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
@@ -329,7 +328,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
                                       Inter_ProbPos = t(Interaction_ProbPos)[lower.tri(t(Interaction_ProbPos), diag = FALSE)],
                                       Inter_ProbNeg = t(Interaction_ProbNeg)[lower.tri(t(Interaction_ProbNeg), diag = FALSE)]
     )
-    Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ] 
+    Interactions_HMSC <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
     save(Interactions_HMSC, file = file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))
   } # end of HMSC model loop
 } # end of HMSC treatment loop
@@ -343,6 +342,10 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  if(file.exists(file.path(Dir.TreatmentIter, "Interac.RData"))){
+    message("Already computed and evaluated")
+    next()
+  }
   ### DATA LOADING ####
   load(file.path(Dir.YFDP, paste0(Treatment_Iter, "_ModelFrames.RData")))
   
@@ -363,15 +366,21 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   options(mc.cores = nChains) 
   
   ### Model Execution ----
-  Stan_model <- stan(file = 'joint_model.stan',
-                     data =  StanList_Iter,
-                     chains = 1,
-                     warmup = nWarmup*nChains/2,
-                     iter = nSamples*nChains/2,
-                     refresh = 100,
-                     control = list(max_treedepth = 10)
-  )
-  save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
+    message("Model already compiled")
+    load(file.path(Dir.TreatmentIter, "Model.RData"))
+  }else{
+    unlink("joint_model.rds")
+    Stan_model <- stan(file = 'joint_model.stan',
+                       data =  StanList_Iter,
+                       chains = 1,
+                       warmup = nWarmup*nChains/2,
+                       iter = nSamples*nChains/2,
+                       refresh = 100,
+                       control = list(max_treedepth = 10)
+    )
+    save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  }
   
   ### Model Diagnostics ----
   # Get the full posteriors 
