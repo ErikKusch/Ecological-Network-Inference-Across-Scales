@@ -297,3 +297,133 @@ ConvertCoordinates <- function(easting,northing) {
   out[mask,]<-sp@coords
   out
 }
+
+# RDATA LOADING ==========================================================
+# loads .RData objects to a specified named object
+loadRData <- function(fileName){
+  #loads an RData file, and returns it
+  load(fileName)
+  get(ls()[ls() != "fileName"])
+}
+
+# RESULTS LOADING ========================================================
+# Loading results of this study into one concise list per geographical scale as identified by the Dir argument
+Load.Results <- function(Dir = NULL){
+  Methods_vec <- list.dirs(Dir, recursive = FALSE, full.names = FALSE)
+  Results_ls <- as.list(rep(NA, length = length(Methods_vec)))
+  names(Results_ls) <- Methods_vec
+  
+  for(Load_Iter in 1:length(Methods_vec)){ # Methods loop
+    Treatments_vec <- list.dirs(file.path(Dir, Methods_vec[Load_Iter]), 
+                                recursive = FALSE, full.names = FALSE) # create treatment list
+    Treatments_ls <- as.list(rep(NA, length = length(Treatments_vec)))
+    names(Treatments_ls) <- Treatments_vec # set treatment list names
+    for(Treatment_Iter in 1:length(Treatments_vec)){ # Treatment loop
+      Files_vec  <- list.files(file.path(Dir, Methods_vec[Load_Iter], Treatments_vec[Treatment_Iter]),
+                               pattern = "terac.RData", full.names = TRUE) # identify result files
+      if(length(Files_vec) == 0){Treatments_ls[[Treatment_Iter]] <- "Model(s) not compiled yet"; next()
+      }
+      if(length(Files_vec) > 1){ # Files check
+        Files_ls <- as.list(rep(NA, length = length(Files_vec))) # create treatment list
+        names(Files_ls) <- gsub(pattern = "_Interac.RData", replacement ="", list.files(file.path(Dir, Methods_vec[Load_Iter], Treatments_vec[Treatment_Iter]), pattern = "terac.RData")) # set names for treatment list
+        for(Files_Iter in 1:length(Files_vec)){ # files loop
+          Interac_df <- loadRData(Files_vec[Files_Iter]) # load result
+          Files_ls[[Files_Iter]] <- Interac_df  # save to list
+        } # end of files loop
+        Treatments_ls[[Treatment_Iter]] <- Files_ls
+      }else{ # if only one model was run for current method and treatment
+        Interac_df <- loadRData(Files_vec) # load result
+        Treatments_ls[[Treatment_Iter]] <- Interac_df # save to list
+      } # end of files check
+    } # end of treatment loop
+    Results_ls[[Load_Iter]] <- Treatments_ls  # save to list
+  } # end of Methods loop 
+  return(Results_ls)
+}
+
+# SPECIES READOUT ========================================================
+# identifying the species which are included in the result lists read in via the Load.Results() function
+ReadOut.Species <- function(List = NULL){
+  Species_vec <- unique(
+    c(
+      unique(unlist(List)[grep(pattern = "Partner", x = names(unlist(List[["COCCUR"]])))]),
+      unique(unlist(List)[grep(pattern = ".sp", x = names(unlist(List[["COCCUR"]])))])
+    )
+  )
+  return(Species_vec) 
+}
+
+# UNNESTING LISTS ========================================================
+# flattening result lists read in via the Load.Results() function
+Flatten.Lists <- function(List_ls = NULL){
+  Flat_ls <- unlist(List_ls, recursive = FALSE)
+  HMSC_pos <- grep(names(Flat_ls), pattern = "HMSC")
+  NETASSOC_pos <- grep(names(Flat_ls), pattern = "NETASSOC")
+  HMSC_ls <- unlist(Flat_ls[HMSC_pos], recursive = FALSE)
+  Flat_ls[NETASSOC_pos] <- lapply(Flat_ls[NETASSOC_pos], FUN = function(x){data.frame(Partner1 = rep(colnames(x), length.out = length(x)),
+                                                                                      Partner2 = rep(rownames(x), each = nrow(x)),
+                                                                                      Effects = as.numeric(x))}
+  )
+  Flat_ls <- c(Flat_ls[which(1:length(Flat_ls) %nin% HMSC_pos)], HMSC_ls)
+}
+
+# LIMITING LISTS =========================================================
+# limiting lists obtained with Flatten.Lists() down to a given set of species
+Limit.Lists <- function(List_ls, Shared_spec){
+  ## Merge Results with data frame of possible interaction specifications
+  Interacs_df <- as.data.frame(expand.grid(Shared_spec, Shared_spec))
+  colnames(Interacs_df) <- c("Partner1", "Partner2")
+  merged_ls <- lapply(List_ls,
+                      function(x){
+                        colnames(x)[1:2] <- c("Partner1", "Partner2")
+                        merged <- merge.data.frame(x = Interacs_df, 
+                                                   y = x, 
+                                                   by = c("Partner1", "Partner2"),
+                                                   all.x = TRUE)
+                        return(merged)
+                      }
+  )
+  ## Signifiance cutoffs of 90% for HMSC and IF-REM
+  Cutoff_pos <- c(grep(names(merged_ls), pattern = "HMSC"), grep(names(merged_ls), pattern = "IF_REM"))
+  for(Cutoff_Iter in Cutoff_pos){
+    if(length(grep(names(merged_ls)[Cutoff_Iter], pattern = "HMSC")) == 1){ # HMSC cutoffs for significance
+      ## only retain interactions for which a 90% probability has been identified
+      merged_ls[[Cutoff_Iter]]$Inter_mean[
+        merged_ls[[Cutoff_Iter]]$Inter_ProbPos < 0.9 & 
+          merged_ls[[Cutoff_Iter]]$Inter_ProbNeg < 0.9] <- NA
+    }else{ #IF-REM cutoffs for significance
+      # 90% intervals from return_inter_array() function
+      merged_ls[[Cutoff_Iter]]$Inter_mean[abs(rowSums(sign(merged_ls[[Cutoff_Iter]][, 3:5]))) != 3] <- NA
+    }
+  }
+  NETASSOC_pos <- grep(names(merged_ls), pattern = "NETASSOC")
+  merged_ls[NETASSOC_pos] <- lapply(merged_ls[NETASSOC_pos], FUN = function(x){
+    x$Effects[duplicated(round(x$Effects, 5), incomparables = NA)] <- NA
+    return(x)
+  }
+  )
+  return(merged_ls)
+}
+
+# EFFECT DATA FRAME ======================================================
+## extracting only the estimates of associations/interactions from limited lists obtained with Limit.Lists()
+Eff.Data.Frame <- function(List_ls = NULL){
+  List_df <- do.call("cbind", lapply(List_ls, `[`, 3))
+  colnames(List_df) <- names(List_ls)
+  List_df <- cbind(List_ls[[1]][ , 1:2], List_df)
+  return(List_df)
+}
+
+# BIOME NAMES IN LIST ====================================================
+## translating biome identifiers into biome names
+BiomeNames.List<- function(List_ls = NULL){
+  Biomes_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 2))
+  Methods_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 1))
+  Biomes_vec <- sapply(Biomes_vec, FUN = function(x){
+    load(file.path(Dir.FIA, paste0("FIABiome",x,".RData")))
+    return(BiomeName)
+  })
+  names(List_ls) <- paste(Methods_vec, Biomes_vec, sep = ".")
+  return(List_ls)
+}
+
