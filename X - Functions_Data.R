@@ -141,6 +141,17 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
     )
     FIABiomass_df<- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
     
+    ## REDUCTION TO LATEST PLOT EACH
+    stop("Limit FIA data to only the latest plot")
+    
+    Last_df <- aggregate(YEAR ~ pltID, FIABiomass_df, max)
+    Last_df <- Last_df[,2:1]
+    Merge_df <- merge(Last_df, FIABiomass_df)
+    
+    coordinates(Merge_df) <- ~Lat+Long
+    
+    # SpatialPointsDataFrame(Merge_df[,c("lng", "lat")], Merge_df[,1:5])
+    
     ## CLIMATE DATA EXTRACTION 
     Layer_seq <- seq.Date(as.Date("1981-01-01"), as.Date("2020-12-31"), by = "month")
     for(Clim_Iter in 1:length(ECV_vec)){

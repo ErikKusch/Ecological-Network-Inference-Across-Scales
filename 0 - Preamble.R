@@ -12,7 +12,7 @@
 # DIRECTORIES ===============================================================
 Dir.Base <- getwd() # read out the project directory
 ## DATA ---------------------------------------------------------------------
-Dir.Data <- file.path(Dir.Base, "Data")
+Dir.Data <- file.path(Dir.Base, "Data_Reduced")
 Dir.YFDP <- file.path(Dir.Data, "YFDP")
 Dir.Region <- file.path(Dir.Data, "Regional")
 Dir.FIA <- file.path(Dir.Data, "RAW_FIA")
@@ -21,7 +21,7 @@ Dir.Shapes <- file.path(Dir.Data, "Shapes")
 DataDirs <- c(Dir.Data, Dir.Shapes, Dir.YFDP, Dir.Region, Dir.FIA, Dir.Observations)
 CreateDir <- sapply(DataDirs, function(x) if(!dir.exists(x)) dir.create(x))
 ## EXPORTS ------------------------------------------------------------------
-Dir.Exports <- file.path(Dir.Base, "Exports")
+Dir.Exports <- file.path(Dir.Base, "Exports_Reduced")
 DirEx.YFDP <- file.path(Dir.Exports, "YFDP")
 DirEx.Region <- file.path(Dir.Exports, "Region")
 DirEx.Observations <- file.path(Dir.Exports, "Observations")
