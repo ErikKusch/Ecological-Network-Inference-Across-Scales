@@ -100,8 +100,8 @@ for(Plots_Iter in 1:length(Header_vec)){
                                   Region = Region_df), 
                 Header = Header_vec[Plots_Iter],
                 SubsetHeader = NULL,
-                X = "Treatment", SubsetX = NULL, 
-                Y = "Method", SubsetY = NULL, 
+                X = "Method", SubsetX = NULL, 
+                Y = "Treatment", SubsetY = NULL, 
                 HMSCFilter = "diametre",
                 FName = paste0("Across-Treatment_", Header_vec[Plots_Iter]),
                 Dir = Dir.WithinScale)
@@ -116,7 +116,7 @@ for(Plots_Iter in 1:length(Header_vec)){
                                   Region = Region_df), 
                 Header = Header_vec[Plots_Iter],
                 X = "Data Set", SubsetX = NULL, 
-                Y = "Treatment", SubsetY = c("Pre-Fire", "Temperate Broadleaf & Mixed Forests"), 
+                Y = "Treatment", SubsetY = c("Pre-Fire", "Temperate Conifer Forests"), 
                 HMSCFilter = "diametre",
                 FName = paste0("Cross-Scale_", Header_vec[Plots_Iter]),
                 Dir = Dir.CrossScale)
@@ -126,83 +126,83 @@ for(Plots_Iter in 1:length(Header_vec)){
 
 # HEATMAP -----
 
-
-for(Counter in 1:nrow(Combines_df)){
-  Plot_df <- Iter_df[Iter_df[, X] == Combines_df$X[Counter] & Iter_df[, Y] == Combines_df$Y[Counter], 1:3]
-  if(nrow(Plot_df) == 0){next()}
-  directed <- ifelse(Combines_df$Y[Counter] == "IF_REM" | 
-                       Combines_df$X[Counter] == "IF_REM" | 
-                       Header == "IF_REM", 
-                     TRUE, FALSE)
-  
-}
-
-
-
-
-
-
-col.pos <- colorRampPalette(c("palegreen", "lightgreen", "green", "forestgreen"))(1e4)
-col.neg <- colorRampPalette(c("lightsalmon", "orangered", "red", "darkred"))(1e4)
-seq.pos <- seq(0.0001, max(abs(Iter_df$Inference), na.rm = TRUE), length.out = 1e4)
-seq.neg <- seq(-0.0001, -max(abs(Iter_df$Inference), na.rm = TRUE), length.out = 1e4)
-
-
-
-
-
-mean_df <- reshape(Plot_df, idvar = "Partner1", timevar = "Partner2", direction = "wide")
-rownames(mean_df) <- mean_df$Partner1
-mean_df <- mean_df[ , -1]
-colnames(mean_df) <- unlist(lapply(strsplit(colnames(mean_df), split = "[.]"), `[`, 2))
-mean_df <- as.matrix(mean_df)
-
-
-## Make vector of colors for values below threshold
-rc1 <- col.neg[seq.neg >= min(Plot_df$Inference, na.rm = TRUE)]
-## Make vector of colors for values above threshold
-rc2 <- col.pos[seq.pos <= max(Plot_df$Inference, na.rm = TRUE)]
-rampcols <- c(rc1, rc2)
-rampcols[c(length(rc1), length(rc1)+1)] <- rgb(t(col2rgb("white")), maxColorValue=256) 
-
-pheatmap(mean_df, display_numbers = TRUE, 
-         number_format =  "%.3f",
-         color = rampcols,
-         main = "Actors (Columns) x Subject (Rows)",
-         fontsize = 10, 
-         cluster_rows = FALSE, 
-         cluster_cols=FALSE,
-         scale = "none"
-)
-
-ggplot() + 
-  geom_bar(data=df2[which(df2$KK==10),], aes(k, value, fill = variable),stat = 'identity',position="dodge") +
-  geom_bar(data=df2[which(df2$KK==30),], aes(k, value, fill = variable),stat = 'identity',position="dodge",alpha=0.5) +
-  theme(legend.position = 'top')
-
-
-rampcols <- c(rev(col.neg), col.pos)
-rampcols[c(length(col.neg), length(col.pos)+1)] <- rgb(t(col2rgb("white")), maxColorValue=256) 
-
-plot(c(rev(seq.neg), seq.pos), col = rampcols)
-
-
-# some toy data
-d <- data.frame(x = 1:length(rampcols), y = 1:length(rampcols))
-
-# interpolate values from zero to y and create corresponding number of x values
-vals <- lapply(d$y, function(y) seq(0, y, by = 0.01))
-y <- unlist(vals)
-mid <- rep(d$x, lengths(vals))
-d2 <- data.frame(x = mid - 0.0001,
-                 xend = mid + 0.0001,
-                 y = y,
-                 yend = y)
-
-ggplot(data = d2, aes(x = x, xend = xend, y = y, yend = yend, color = y)) +
-  geom_segment(size = 2) +
-  scale_color_gradient2(low = "red", mid = "yellow", high = "green", 
-                        midpoint = max(d2$y)/2) 
+# 
+# for(Counter in 1:nrow(Combines_df)){
+#   Plot_df <- Iter_df[Iter_df[, X] == Combines_df$X[Counter] & Iter_df[, Y] == Combines_df$Y[Counter], 1:3]
+#   if(nrow(Plot_df) == 0){next()}
+#   directed <- ifelse(Combines_df$Y[Counter] == "IF_REM" | 
+#                        Combines_df$X[Counter] == "IF_REM" | 
+#                        Header == "IF_REM", 
+#                      TRUE, FALSE)
+#   
+# }
+# 
+# 
+# 
+# 
+# 
+# 
+# col.pos <- colorRampPalette(c("palegreen", "lightgreen", "green", "forestgreen"))(1e4)
+# col.neg <- colorRampPalette(c("lightsalmon", "orangered", "red", "darkred"))(1e4)
+# seq.pos <- seq(0.0001, max(abs(Iter_df$Inference), na.rm = TRUE), length.out = 1e4)
+# seq.neg <- seq(-0.0001, -max(abs(Iter_df$Inference), na.rm = TRUE), length.out = 1e4)
+# 
+# 
+# 
+# 
+# 
+# mean_df <- reshape(Plot_df, idvar = "Partner1", timevar = "Partner2", direction = "wide")
+# rownames(mean_df) <- mean_df$Partner1
+# mean_df <- mean_df[ , -1]
+# colnames(mean_df) <- unlist(lapply(strsplit(colnames(mean_df), split = "[.]"), `[`, 2))
+# mean_df <- as.matrix(mean_df)
+# 
+# 
+# ## Make vector of colors for values below threshold
+# rc1 <- col.neg[seq.neg >= min(Plot_df$Inference, na.rm = TRUE)]
+# ## Make vector of colors for values above threshold
+# rc2 <- col.pos[seq.pos <= max(Plot_df$Inference, na.rm = TRUE)]
+# rampcols <- c(rc1, rc2)
+# rampcols[c(length(rc1), length(rc1)+1)] <- rgb(t(col2rgb("white")), maxColorValue=256) 
+# 
+# pheatmap(mean_df, display_numbers = TRUE, 
+#          number_format =  "%.3f",
+#          color = rampcols,
+#          main = "Actors (Columns) x Subject (Rows)",
+#          fontsize = 10, 
+#          cluster_rows = FALSE, 
+#          cluster_cols=FALSE,
+#          scale = "none"
+# )
+# 
+# ggplot() + 
+#   geom_bar(data=df2[which(df2$KK==10),], aes(k, value, fill = variable),stat = 'identity',position="dodge") +
+#   geom_bar(data=df2[which(df2$KK==30),], aes(k, value, fill = variable),stat = 'identity',position="dodge",alpha=0.5) +
+#   theme(legend.position = 'top')
+# 
+# 
+# rampcols <- c(rev(col.neg), col.pos)
+# rampcols[c(length(col.neg), length(col.pos)+1)] <- rgb(t(col2rgb("white")), maxColorValue=256) 
+# 
+# plot(c(rev(seq.neg), seq.pos), col = rampcols)
+# 
+# 
+# # some toy data
+# d <- data.frame(x = 1:length(rampcols), y = 1:length(rampcols))
+# 
+# # interpolate values from zero to y and create corresponding number of x values
+# vals <- lapply(d$y, function(y) seq(0, y, by = 0.01))
+# y <- unlist(vals)
+# mid <- rep(d$x, lengths(vals))
+# d2 <- data.frame(x = mid - 0.0001,
+#                  xend = mid + 0.0001,
+#                  y = y,
+#                  yend = y)
+# 
+# ggplot(data = d2, aes(x = x, xend = xend, y = y, yend = yend, color = y)) +
+#   geom_segment(size = 2) +
+#   scale_color_gradient2(low = "red", mid = "yellow", high = "green", 
+#                         midpoint = max(d2$y)/2) 
 
 
 

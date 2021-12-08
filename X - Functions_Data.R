@@ -411,6 +411,19 @@ Eff.Data.Frame <- function(List_ls = NULL){
   List_df <- do.call("cbind", lapply(List_ls, `[`, 3))
   colnames(List_df) <- names(List_ls)
   List_df <- cbind(List_ls[[1]][ , 1:2], List_df)
+  IF_REMs <- grep(pattern = "IF_REM", x = colnames(List_df))
+  if(length(IF_REMs) > 0){
+    AB_inter <- paste(List_df$Partner1, List_df$Partner2, sep ="_")
+    BA_inter <- paste(List_df$Partner2, List_df$Partner1, sep ="_")
+    for(IF_REM_Iter in IF_REMs){
+      means_df <- data.frame(Original = List_df[,IF_REM_Iter],
+                             Matched = List_df[match(AB_inter, BA_inter),IF_REM_Iter]
+      )
+      List_df$XYZ <- rowMeans(means_df, na.rm = TRUE)
+      List_df$XYZ[duplicated(List_df$XYZ)] <- NA
+      colnames(List_df)[ncol(List_df)] <- gsub(pattern = "IF_REM", replacement = "IF_REM_Assoc", x = colnames(List_df)[IF_REM_Iter])
+    }
+  }
   return(List_df)
 }
 

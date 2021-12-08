@@ -139,8 +139,8 @@ Plots.Compare <- function(Compare_df = NULL,
                            Header == "IF_REM", 
                          TRUE, FALSE)
       Plots_ls[[Counter]] <- qgraph::qgraph(Plot_df, # the three-column data frame of "Partner1", "Partner2", and "Effect"
-                                            bg = "darkgrey", # background colour
-                                            color = "white", # colour of nodes
+                                            bg = "white", # background colour
+                                            color = "grey", # colour of nodes
                                             layout = 'groups', # layout (I have found this one to be consistent across al plots)
                                             # esize = 8, # line width of strongest connection/edge
                                             palette = "colorblind", # colour palette
