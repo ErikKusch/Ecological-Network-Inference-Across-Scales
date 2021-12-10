@@ -29,6 +29,8 @@ nChains <- 4
 thin <- 1
 
 # DATA =====================================================================
+Shared_spec <- c("Abies concolor", "Abies magnifica", "Calocedrus decurrens","Cornus nuttallii", "Pinus lambertiana", "Pinus ponderosa", "Pseudotsuga menziesii", "Quercus kelloggii")
+
 ## CLIMATE DATA RETRIEVAL --------------------------------------------------
 ECV_vec <- c("2m_temperature", "volumetric_soil_water_layer_1", "total_precipitation", "potential_evaporation")
 FIA_shp <- crop(FIA_shp, extent(extent(FIA_shp)[1], -59.5, extent(FIA_shp)[3], extent(FIA_shp)[4]))
@@ -40,9 +42,11 @@ if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
 
 ## FIA DATA RETRIEVAL ------------------------------------------------------
 if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", 1:13, ".RData")))) != 13){
-  FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), nCores = parallel::detectCores(), Dir.FIA = Dir.FIA)
+  FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), 
+          nCores = parallel::detectCores(), 
+          Dir.FIA = Dir.FIA)
 }
-FIABiomes_fs <- list.files(path = Dir.FIA, pattern = "FIABiome")
+# FIABiomes_fs <- list.files(path = Dir.FIA, pattern = "FIABiome")
 
 # ANALYSIS =================================================================
 
@@ -51,8 +55,8 @@ message("############ STARTING HMSC ANALYSES")
 Dir.HMSC <- file.path(DirEx.Region, "HMSC")
 if(!dir.exists(Dir.HMSC)){dir.create(Dir.HMSC)}
 
-for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
-  load(file.path(Dir.FIA, FIABiomes_fs[[Treatment_Iter]]))
+for(Treatment_Iter in 13:1){ # HMSC treatment loop
+  load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   ECV_vec[1] <- "X2m_temperature"
   colnames(Metadata_df) <- gsub(colnames(Metadata_df), pattern = "2m_temperature", replacement = ECV_vec[1])
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
@@ -69,6 +73,15 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   print(nrow(Metadata_df))
   sink()
 
+  ### REMOVAL OF NON-FOCAL SPECIES FOR COMPARISON ###
+  Phylo_Iter$Avg_Phylo <- drop.tip(Phylo_Iter$Avg_Phylo, Phylo_Iter$Avg_Phylo$tip.label[Phylo_Iter$Avg_Phylo$tip.label %nin% Shared_spec])
+  if(is.null(Phylo_Iter$Avg_Phylo)){
+    print("All shared species absent")
+    next()
+  }
+  ModelFrames_ls$FitCom <- ModelFrames_ls$FitCom[, colnames(ModelFrames_ls$FitCom) %in% Shared_spec]
+  ModelFrames_ls$Community <- ModelFrames_ls$Community[, colnames(ModelFrames_ls$Community) %in% Shared_spec]
+  
   ### DATA PREPRATION ####
   Phylo_Iter <- Phylo_Iter$Avg_Phylo
   S <- Metadata_df[, c("SiteID", "YEAR")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
@@ -78,6 +91,8 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL
   Tr <- NULL # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL.
 
+  P <- drop.tip(P, P$tip.label[P$tip.label %nin% colnames(Y_AB)])
+  
   ### DATA CHECKS ####
   if(all(dim(Y_AB) == dim(Y_BM))){print("Community matrices are the same dimensions")}else{stop("Community matrices have unequal dimensions")}
   if(is.numeric(as.matrix(Y_AB)) || is.logical(as.matrix(Y_AB)) && is.finite(sum(Y_AB, na.rm=TRUE))){print("Species data looks ok")
@@ -178,127 +193,127 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
   } # end of HMSC model loop
 } # end of HMSC treatment loop
 
-# ## IF-REM ------------------------------------------------------------------
-# message("############ STARTING IF-REM ANALYSES")
-# Dir.IFREM <- file.path(DirEx.Region, "IF_REM")
-# if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
-# 
-# for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
-#   load(file.path(Dir.Region, FIABiomes_fs[[Treatment_Iter]]))
-#   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
-#   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
-#   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
-#   sink(file.path(Dir.TreatmentIter, "Biome.txt"))
-#   print("BIOME")
-#   print(BiomeName)
-#   print("OBSERVATIONS")
-#   print(nrow(ModelFrames_ls$Fitness))
-#   print("SPECIES")
-#   print(nrow(Phylo_Iter$Dist_Mean))
-#   print("SITES")
-#   print(nrow(Metadata_df))
-#   sink()
-#   
-# ## Simplification by genus
-# # GenusFitness <- ModelFrames_ls$Fitness
-# # GenusFitness$taxon <- sapply(strsplit(GenusFitness$taxon, split = " "), "[[", 1)
-# # GenusFitness <- aggregate(x = GenusFitness$value, 
-# #           by = list(GenusFitness$SiteID, GenusFitness$taxon), 
-# #           FUN = "mean")
-# # colnames(GenusFitness) <- c("SiteID", "taxon", "value")
-# # 
-# # GenusCommunity <- ModelFrames_ls$Community
-# # colnames(GenusCommunity) <- c("SiteID", sapply(strsplit(colnames(GenusCommunity[,-1]), split = " "), "[[", 1))
-# # GenusComm <- as.data.frame(t(rowsum(t(GenusCommunity[, -1]), group = colnames(GenusCommunity)[-1], na.rm = TRUE)))
-# # GenusComm$SiteID <- GenusCommunity$SiteID
-# # ## combine SiteID, focal fitness, and neighbour counts
-# # Index_df <- cbind(GenusFitness,
-# #                   GenusComm[match(GenusFitness$SiteID, GenusComm$SiteID),  -ncol(GenusComm)])
-# # # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
-# # Index_df <- Index_df[which(Index_df$value > 0), ]
-# 
-# # SPecies-Level analysis
-# Index_df <- cbind(ModelFrames_ls$Fitness,
-#                   ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
-#                                                  ModelFrames_ls$Community$SiteID),  -1])
-# Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
+# IF-REM ------------------------------------------------------------------
+message("############ STARTING IF-REM ANALYSES")
+Dir.IFREM <- file.path(DirEx.Region, "IF_REM")
+if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
+
+for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
+  closeAllConnections()
+  load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+  Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
+  if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  sink(file.path(Dir.TreatmentIter, "Biome.txt"))
+  print("BIOME")
+  print(BiomeName)
+  print("OBSERVATIONS")
+  print(nrow(ModelFrames_ls$Fitness))
+  print("SPECIES")
+  print(nrow(Phylo_Iter$Dist_Mean))
+  print("SITES")
+  print(nrow(Metadata_df))
+  sink()
+
+## Simplification by genus
+# GenusFitness <- ModelFrames_ls$Fitness
+# GenusFitness$taxon <- sapply(strsplit(GenusFitness$taxon, split = " "), "[[", 1)
+# GenusFitness <- aggregate(x = GenusFitness$value,
+#           by = list(GenusFitness$SiteID, GenusFitness$taxon),
+#           FUN = "mean")
+# colnames(GenusFitness) <- c("SiteID", "taxon", "value")
+#
+# GenusCommunity <- ModelFrames_ls$Community
+# colnames(GenusCommunity) <- c("SiteID", sapply(strsplit(colnames(GenusCommunity[,-1]), split = " "), "[[", 1))
+# GenusComm <- as.data.frame(t(rowsum(t(GenusCommunity[, -1]), group = colnames(GenusCommunity)[-1], na.rm = TRUE)))
+# GenusComm$SiteID <- GenusCommunity$SiteID
+# ## combine SiteID, focal fitness, and neighbour counts
+# Index_df <- cbind(GenusFitness,
+#                   GenusComm[match(GenusFitness$SiteID, GenusComm$SiteID),  -ncol(GenusComm)])
+# # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
 # Index_df <- Index_df[which(Index_df$value > 0), ]
-#   
-#   ### DATA PREPRATION ####
-#   StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
-#   
-#   ### DATA CHECKS ####
-#   FUN.DataDims(data = StanList_Iter)
-#   
-#   #### Preferences
-#   rstan_options(auto_write = TRUE)
-#   rstan_options(javascript = FALSE)
-#   options(mc.cores = 1) 
-#   
-#   ### Model Execution ----
-#   unlink(file.path(Dir.Base, "joint_model.rds"))
-#   Stan_model <- stan(file = 'joint_model.stan',
-#                      data =  StanList_Iter,
-#                      chains = 1,
-#                      warmup = nWarmup*nChains/2,
-#                      iter = nSamples*nChains/2,
-#                      refresh = 100,
-#                      control = list(max_treedepth = 10),
-#                      model_name = BiomeName
-#   )
-#   save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
-#   
-#   ### Model Diagnostics ----
-#   # Get the full posteriors 
-#   joint.post.draws <- extract.samples(Stan_model)
-#   # Select parameters of interest
-#   param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
-#   # Draw 1000 samples from the 80% posterior interval for each parameter of interest
-#   p.samples <- list()
-#   p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
-#     p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-#       sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
-#     })  # this only works for parameters which are vectors
-#   })
-#   # there is only one sigma_alph parameter so we must sample differently:
-#   p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
-#     joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) & 
-#       joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
-#   # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
-#   intrinsic.perf <- log(p.samples$beta_i0)
-#   colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
-#   inter_mat <- return_inter_array(joint.post.draws = joint.post.draws, 
-#                                   response = p.samples$response,
-#                                   effect = p.samples$effect,
-#                                   focalID = levels(factor(Index_Iter$taxon)),
-#                                   neighbourID = colnames(Index_Iter[, -1:-3]))
-#   # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
-#   try(stan_model_check(fit = Stan_model,
-#                        results_folder = Dir.TreatmentIter,
-#                        params = param.vec))
-#   
-#   ### Interaction/Association Matrix ----
-#   Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)  
-#   Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
-#   diag(Interaction_mean) <- NA
-#   Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89)
-#   Interaction_min <- -Interaction_hpdi[1,,]
-#   diag(Interaction_min) <- NA
-#   Interaction_max <- -Interaction_hpdi[2,,]
-#   diag(Interaction_max) <- NA
-#   Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
-#                                     Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
-#                                     Inter_mean = as.vector(t(Interaction_mean)),
-#                                     Inter_min = as.vector(t(Interaction_min)),
-#                                     Inter_max = as.vector(t(Interaction_max))
-#   )
-#   Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
-#   Interactions_IFREM <- na.omit(Interactions_IFREM)
-#   save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
-#   
-#   # ### Plotting ####
-#   # FUN.PlotNetUncert(Model = inter_mat, Dir = Dir.PlotNets.PFTC, Name = Treatment_Iter)
-# } 
+
+# SPecies-Level analysis
+Index_df <- cbind(ModelFrames_ls$Fitness,
+                  ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+                                                 ModelFrames_ls$Community$SiteID),  -1])
+# Index_df <- Index_df[, -which(colSums(Index_df[,-1:-3]) == 0)-3]
+# Index_df <- Index_df[which(Index_df$value > 0), ]
+# Index_df <- Index_df[which(Index_df$value > 2.5), ]
+
+  ### DATA PREPRATION ####
+  StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
+
+  ### DATA CHECKS ####
+  FUN.DataDims(data = StanList_Iter)
+
+  #### Preferences
+  rstan_options(auto_write = TRUE)
+  rstan_options(javascript = FALSE)
+  options(mc.cores = 1)
+
+  ### Model Execution ----
+  unlink(file.path(Dir.Base, "joint_model.rds"))
+  Stan_model <- stan(file = 'joint_model.stan',
+                     data =  StanList_Iter,
+                     chains = 1,
+                     warmup = nWarmup*nChains/2,
+                     iter = nSamples*nChains/2,
+                     refresh = 100,
+                     control = list(max_treedepth = 10),
+                     model_name = BiomeName
+  )
+  save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
+
+  ### Model Diagnostics ----
+  # Get the full posteriors
+  joint.post.draws <- extract.samples(Stan_model)
+  # Select parameters of interest
+  param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
+  # Draw 1000 samples from the 80% posterior interval for each parameter of interest
+  p.samples <- list()
+  p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
+    p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
+      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
+    })  # this only works for parameters which are vectors
+  })
+  # there is only one sigma_alph parameter so we must sample differently:
+  p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
+    joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) &
+      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
+  # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
+  intrinsic.perf <- log(p.samples$beta_i0)
+  colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
+  inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
+                                  response = p.samples$response,
+                                  effect = p.samples$effect,
+                                  focalID = levels(factor(Index_Iter$taxon)),
+                                  neighbourID = colnames(Index_Iter[, -1:-3]))
+  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction
+  try(stan_model_check(fit = Stan_model,
+                       results_folder = Dir.TreatmentIter,
+                       params = param.vec))
+
+  ### Interaction/Association Matrix ----
+  Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)
+  Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
+  diag(Interaction_mean) <- NA
+  Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89)
+  Interaction_min <- -Interaction_hpdi[1,,]
+  diag(Interaction_min) <- NA
+  Interaction_max <- -Interaction_hpdi[2,,]
+  diag(Interaction_max) <- NA
+  Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
+                                    Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
+                                    Inter_mean = as.vector(t(Interaction_mean)),
+                                    Inter_min = as.vector(t(Interaction_min)),
+                                    Inter_max = as.vector(t(Interaction_max))
+  )
+  Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
+  Interactions_IFREM <- na.omit(Interactions_IFREM)
+  save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
+
+}
 
 ## NETASSOC ----------------------------------------------------------------
 message("############ STARTING NETASSOC ANALYSES")
@@ -320,9 +335,9 @@ if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
 }
 
 ### Analysis loop ----
-for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
-  load(file.path(Dir.FIA, FIABiomes_fs[[Treatment_Iter]]))
-  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+for(Treatment_Iter in 1:13){ # HMSC treatment loop
+  load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
   Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
   sink(file.path(Dir.TreatmentIter, "Biome.txt"))
@@ -391,9 +406,9 @@ message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.Region, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
 
-for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # HMSC treatment loop
-  load(file.path(Dir.FIA, FIABiomes_fs[[Treatment_Iter]]))
-  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
+for(Treatment_Iter in 1:13){ # HMSC treatment loop
+  load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
+  message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
   Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
   sink(file.path(Dir.TreatmentIter, "Biome.txt"))
