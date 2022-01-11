@@ -77,6 +77,10 @@ for(Treatment_Iter in 1:length(Treatments_ls$Name)){
   message(paste("Preparing data for", Treatments_ls$Name[Treatment_Iter], "treatment"))
   Raw_df <- read.csv(file.path(Dir.YFDP, Treatments_ls$File[Treatment_Iter]))
   Raw_df <- Raw_df[Raw_df$SPECIES != "UNKN", ]
+  Raw_df <- Raw_df[Raw_df$DBH > 1, ]
+  if(Treatment_Iter == 2){ # remove DBHs that have been altered by fire in post-fire data
+    Raw_df <- Raw_df[Raw_df$BURN_AT_DBH != 3, ]
+  }
   YFDP_df <- data.frame(SiteID = Raw_df$QUADRAT,
                         taxon = Raw_df$SPECIES,
                         value = Raw_df$DBH,
