@@ -139,18 +139,20 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
                              treeType = "live",
                              returnSpatial = TRUE
     )
-    FIABiomass_df<- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
+    FIABiomass_df <- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
     
     ## REDUCTION TO LATEST PLOT EACH
-    stop("Limit FIA data to only the latest plot")
-    
     Last_df <- aggregate(YEAR ~ pltID, FIABiomass_df, max)
     Last_df <- Last_df[,2:1]
     Merge_df <- merge(Last_df, FIABiomass_df)
-    
-    coordinates(Merge_df) <- ~Lat+Long
-    
-    # SpatialPointsDataFrame(Merge_df[,c("lng", "lat")], Merge_df[,1:5])
+    # need to make Merge_df a Spatialpointsdataframe like FIABiomass_df again
+    Merge_df$Lon <- sf::st_coordinates(Merge_df$geometry)[,1]
+    Merge_df$Lat <- sf::st_coordinates(Merge_df$geometry)[,2]
+    Merge_df <- st_as_sf(x = Merge_df,
+                         coords = c("Lon", "Lat"),
+                         crs = st_crs(FIABiomass_df))
+    # now overwrite original FIABiomass_df with sp Merge_df
+    FIABiomass_df <- Merge_df
     
     ## CLIMATE DATA EXTRACTION 
     Layer_seq <- seq.Date(as.Date("1981-01-01"), as.Date("2020-12-31"), by = "month")
@@ -209,6 +211,12 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
     print(BiomeName)
     if(file.exists(file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
     FIAIter_df <- FIASplit_ls[[Biome_Iter]]
+    
+    ### LMITING by species rarity ----
+    SpecsPlots_percentage <- table(FIAIter_df$SCIENTIFIC_NAME)/length(unique(FIAIter_df$pltID))
+    SpecsKeep <- which(SpecsPlots_percentage > .1 | names(SpecsPlots_percentage) %in% Shared_spec) 
+    SpecsKeep <- names(SpecsKeep)
+    FIAIter_df <- FIAIter_df[which(FIAIter_df$SCIENTIFIC_NAME %in% SpecsKeep), ]
     
     ### Metadata_df ----
     Metadata_df <- as.data.frame(FIAIter_df[,c("pltID", "YEAR", paste0(rep(ECV_vec, each = 3), c("", "_SD", "_UC")))])[-15]
