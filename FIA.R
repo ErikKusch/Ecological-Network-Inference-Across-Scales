@@ -55,7 +55,7 @@ message("############ STARTING HMSC ANALYSES")
 Dir.HMSC <- file.path(DirEx.Region, "HMSC")
 if(!dir.exists(Dir.HMSC)){dir.create(Dir.HMSC)}
 
-for(Treatment_Iter in 13:1){ # HMSC treatment loop
+for(Treatment_Iter in c(1,8:9)){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   ECV_vec[1] <- "X2m_temperature"
   colnames(Metadata_df) <- gsub(colnames(Metadata_df), pattern = "2m_temperature", replacement = ECV_vec[1])
@@ -72,7 +72,7 @@ for(Treatment_Iter in 13:1){ # HMSC treatment loop
   print("SITES")
   print(nrow(Metadata_df))
   sink()
-
+  
   ### REMOVAL OF NON-FOCAL SPECIES FOR COMPARISON ###
   Phylo_Iter$Avg_Phylo <- drop.tip(Phylo_Iter$Avg_Phylo, Phylo_Iter$Avg_Phylo$tip.label[Phylo_Iter$Avg_Phylo$tip.label %nin% Shared_spec])
   if(is.null(Phylo_Iter$Avg_Phylo)){
@@ -90,7 +90,7 @@ for(Treatment_Iter in 13:1){ # HMSC treatment loop
   Y_AB <- ModelFrames_ls$Community[ , -1] # Y: species data
   P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL
   Tr <- NULL # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL.
-
+  
   P <- drop.tip(P, P$tip.label[P$tip.label %nin% colnames(Y_AB)])
   
   ### DATA CHECKS ####
@@ -104,7 +104,7 @@ for(Treatment_Iter in 13:1){ # HMSC treatment loop
   if(any(is.na(P))){stop("P has NA values - not allowed for")
   }else{print("P looks ok")}
   if(all(sort(P$tip.label) == sort(colnames(Y_AB)))){print("species names in P and SXY match")}else{stop("species names in P and SXY do not match")}
-
+  
   ### Model Specification ----
   ## removing rare species
   Ypa <- 1*(Y_AB>0) # identify presences (1) and absences (0) in species data
@@ -144,7 +144,7 @@ for(Treatment_Iter in 13:1){ # HMSC treatment loop
              ranLevels={list("site" = rL.site)})
   models <- list(m1,m2, m3)
   modelnames <- c("presence_absence","abundance", "biomass")
-
+  
   ### Modelling ----
   samples_list <- nSamples
   message(paste0("thin = ",as.character(thin),"; samples = ",as.character(nSamples)))
@@ -164,13 +164,13 @@ for(Treatment_Iter in 13:1){ # HMSC treatment loop
       message("Already sampled")
       load(filename)
     }
-
-
+    
+    
     if(file.exists(file.path(Dir.TreatmentIter, paste0(hmsc_modelname, "_Interac.RData")))){
       message("Already evaluated")
       next()
     }
-
+    
     ### Model Evaluation ----
     message("Evaluation")
     vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
@@ -198,7 +198,7 @@ message("############ STARTING IF-REM ANALYSES")
 Dir.IFREM <- file.path(DirEx.Region, "IF_REM")
 if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
-for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with > 5000 data points
+for(Treatment_Iter in c(1,8:9)){ # only running this for subsets with > 5000 data points
   closeAllConnections()
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
@@ -214,44 +214,44 @@ for(Treatment_Iter in c(1, 4, 8, 12, 13)){ # only running this for subsets with 
   print("SITES")
   print(nrow(Metadata_df))
   sink()
-
-## Simplification by genus
-# GenusFitness <- ModelFrames_ls$Fitness
-# GenusFitness$taxon <- sapply(strsplit(GenusFitness$taxon, split = " "), "[[", 1)
-# GenusFitness <- aggregate(x = GenusFitness$value,
-#           by = list(GenusFitness$SiteID, GenusFitness$taxon),
-#           FUN = "mean")
-# colnames(GenusFitness) <- c("SiteID", "taxon", "value")
-#
-# GenusCommunity <- ModelFrames_ls$Community
-# colnames(GenusCommunity) <- c("SiteID", sapply(strsplit(colnames(GenusCommunity[,-1]), split = " "), "[[", 1))
-# GenusComm <- as.data.frame(t(rowsum(t(GenusCommunity[, -1]), group = colnames(GenusCommunity)[-1], na.rm = TRUE)))
-# GenusComm$SiteID <- GenusCommunity$SiteID
-# ## combine SiteID, focal fitness, and neighbour counts
-# Index_df <- cbind(GenusFitness,
-#                   GenusComm[match(GenusFitness$SiteID, GenusComm$SiteID),  -ncol(GenusComm)])
-# # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
-# Index_df <- Index_df[which(Index_df$value > 0), ]
-
-# SPecies-Level analysis
-Index_df <- cbind(ModelFrames_ls$Fitness,
-                  ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
-                                                 ModelFrames_ls$Community$SiteID),  -1])
-# Index_df <- Index_df[, -which(colSums(Index_df[,-1:-3]) == 0)-3]
-# Index_df <- Index_df[which(Index_df$value > 0), ]
-# Index_df <- Index_df[which(Index_df$value > 2.5), ]
-
+  
+  ## Simplification by genus
+  # GenusFitness <- ModelFrames_ls$Fitness
+  # GenusFitness$taxon <- sapply(strsplit(GenusFitness$taxon, split = " "), "[[", 1)
+  # GenusFitness <- aggregate(x = GenusFitness$value,
+  #           by = list(GenusFitness$SiteID, GenusFitness$taxon),
+  #           FUN = "mean")
+  # colnames(GenusFitness) <- c("SiteID", "taxon", "value")
+  #
+  # GenusCommunity <- ModelFrames_ls$Community
+  # colnames(GenusCommunity) <- c("SiteID", sapply(strsplit(colnames(GenusCommunity[,-1]), split = " "), "[[", 1))
+  # GenusComm <- as.data.frame(t(rowsum(t(GenusCommunity[, -1]), group = colnames(GenusCommunity)[-1], na.rm = TRUE)))
+  # GenusComm$SiteID <- GenusCommunity$SiteID
+  # ## combine SiteID, focal fitness, and neighbour counts
+  # Index_df <- cbind(GenusFitness,
+  #                   GenusComm[match(GenusFitness$SiteID, GenusComm$SiteID),  -ncol(GenusComm)])
+  # # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-2]) == 0)-2]
+  # Index_df <- Index_df[which(Index_df$value > 0), ]
+  
+  # SPecies-Level analysis
+  Index_df <- cbind(ModelFrames_ls$Fitness,
+                    ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
+                                                   ModelFrames_ls$Community$SiteID),  -1])
+  # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-3]) == 0)-3]
+  # Index_df <- Index_df[which(Index_df$value > 0), ]
+  # Index_df <- Index_df[which(Index_df$value > 2.5), ]
+  
   ### DATA PREPRATION ####
   StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
-
+  
   ### DATA CHECKS ####
   FUN.DataDims(data = StanList_Iter)
-
+  
   #### Preferences
   rstan_options(auto_write = TRUE)
   rstan_options(javascript = FALSE)
   options(mc.cores = 1)
-
+  
   ### Model Execution ----
   unlink(file.path(Dir.Base, "joint_model.rds"))
   Stan_model <- stan(file = 'joint_model.stan',
@@ -264,7 +264,7 @@ Index_df <- cbind(ModelFrames_ls$Fitness,
                      model_name = BiomeName
   )
   save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
-
+  
   ### Model Diagnostics ----
   # Get the full posteriors
   joint.post.draws <- extract.samples(Stan_model)
@@ -293,7 +293,7 @@ Index_df <- cbind(ModelFrames_ls$Fitness,
   try(stan_model_check(fit = Stan_model,
                        results_folder = Dir.TreatmentIter,
                        params = param.vec))
-
+  
   ### Interaction/Association Matrix ----
   Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)
   Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
@@ -312,7 +312,7 @@ Index_df <- cbind(ModelFrames_ls$Fitness,
   Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
   Interactions_IFREM <- na.omit(Interactions_IFREM)
   save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
-
+  
 }
 
 ## NETASSOC ----------------------------------------------------------------
@@ -335,7 +335,7 @@ if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
 }
 
 ### Analysis loop ----
-for(Treatment_Iter in 1:13){ # HMSC treatment loop
+for(Treatment_Iter in c(1,8:9)){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
   Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
@@ -406,7 +406,7 @@ message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.Region, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
 
-for(Treatment_Iter in 1:13){ # HMSC treatment loop
+for(Treatment_Iter in c(1,8:9)){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
   Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
@@ -421,7 +421,7 @@ for(Treatment_Iter in 1:13){ # HMSC treatment loop
   print("SITES")
   print(nrow(Metadata_df))
   sink()
-
+  
   mat_Iter <- ModelFrames_ls$Community[,-1]
   rownames(mat_Iter) <- ModelFrames_ls$Community[ , 1]
   mat_Iter[is.na(mat_Iter)] <- 0
