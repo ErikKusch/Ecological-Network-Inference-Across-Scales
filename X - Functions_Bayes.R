@@ -186,34 +186,54 @@ FUN.StanList <- function(Fitness = "value", data = NULL){
   Counts <- split(Counts, data$taxon) # split into groups by species
   obs <- do.call(rbind, lapply(Counts, colSums))
   
+  ## Inferable Interactions ---
+  # df is the dataframe, the 'focal' column gives you the focal species name for each observation,
+  # and nonNcols (3) is a variable which tells you how many columns in df are NOT neighbour abundances
+  Q <- t(sapply(levels(as.factor(data$taxon)), function(f){
+    # inferrable interactions are identified for each focal species independently
+    N_i <- as.matrix(data[data$taxon == f, -c(1:3)]) # I just need the matrix of neighbour
+    # abundances for all observations for that one taxon
+    X_i <- cbind(1,N_i)
+    R_i <- pracma::rref(X_i)
+    Z_i <- t(R_i) %*% R_i
+    # param k is inferrable if its corresponding row/column is all 0 except for the k'th element
+    # ignore intercept because we always want to include it (beta_i0)
+    sapply(seq(2, dim(Z_i)[1], 1), function(k){
+      ifelse(Z_i[k, k] == 1 & sum(Z_i[k, -k]) == 0, 1, 0)
+    })
+  }))
+  stan.data <- list() # storing data in the format preffered by stan
+  stan.data$Q <- Q # Q is a matrix of taxon x neighbours, if Q[i, j] = 1 then the interaction between i and # j is inferrable
+  
   ## Integers ----
   stan.data$S <- length(unique(data$taxon))  # number of species
   stan.data$N <- nrow(data)                  # number of observations
   stan.data$K <- ncol(data[ , -c(1:3)])      # number of neighbours
-  stan.data$I <- length(obs[obs > 0])        # number of observed interactions
+  stan.data$I <- sum(Q)                      # # number of interactions which can be inferred by a single parameter
   stan.data$Z <- stan.data$S*stan.data$K   # total number of possible interactions
   
   ## Vectors ----
-  stan.data$species_ID <- as.numeric(as.factor(data$taxon)) # numeric indices for focal species
+  stan.data$species_ID <- as.numeric(as.factor(data$taxon)) # numeric indices for taxon species
   stan.data$fitness <- data[, Fitness] # fitness proxy
   
   ## Indices for Interactions in Alpha-Matrix ----
-  stan.data$inter_per_species <- obs # first count the number of interactions observed for each focal species
-  stan.data$inter_per_species[stan.data$inter_per_species > 0] <- 1 # set all interactions to one
-  stan.data$inter_per_species <- rowSums(stan.data$inter_per_species)
-  stan.data$inter_per_species_perneighbour <- obs
-  stan.data$icol <- unlist(apply(ifelse(obs > 0, T, F), 1, which)) # column index in the alpha matrix for each observed interaction
+  stan.data$inter_per_species <- rowSums(Q)
+  # column index in the interactions matrix for each inferrable interaction
+  stan.data$icol <- unlist(apply(ifelse(Q > 0, T, F), 1, which))
   names(stan.data$icol) <- NULL
   stan.data$icol <- as.vector(stan.data$icol)
-  stan.data$irow <- rep(1, stan.data$inter_per_species[[1]]) # begin the row index
-  stan.data$istart <- 1 # begin the start and end indices for the vector of interactions per species
-  stan.data$iend <- stan.data$inter_per_species[[1]] # begin the start and end indices for the vector of interactions per species
-  for(s in 2:stan.data$S){ # populate indices for all the other species
-    # starting position of a_ij's for i in the vector of observed interactions (ie the 1st 'j')
+  # begin the row index
+  stan.data$irow <- rep(1, stan.data$inter_per_species[[1]])
+  # begin the start and end indices for the vector of realised interactions per species
+  stan.data$istart <- 1
+  stan.data$iend <- stan.data$inter_per_species[[1]] #???
+  # populate indices for all the other species
+  for(s in 2:stan.data$S) {
+    # starting position of beta_ij's for i in the vector of observed interactions (ie the 1st 'j')
     stan.data$istart[s] <- sum(stan.data$inter_per_species[s-1:s])+1
-    # end position of a_ij's for i in the vector of observed interactions (the last 'j')
-    stan.data$iend[s] <-  sum(stan.data$inter_per_species[1:s])
-    # row index in the alpha matrix for each observed interaction
+    # end position of beta_ij's for i in the vector of observed interactions (the last 'j')
+    stan.data$iend[s] <- sum(stan.data$inter_per_species[1:s])
+    # row index in the interaction matrix for each observed interaction
     stan.data$irow <- c(stan.data$irow, rep(s, stan.data$inter_per_species[[s]]))
   }
   
@@ -232,11 +252,11 @@ FUN.DataDims <- function(data = NULL){
   message(paste0('Number of observations = ', data$N))
   message(paste0('Number of focal species = ', data$S))
   message(paste0('Number of neighbouring species = ', data$K))
-  message(paste0('Number of observed interactions = ', data$I))
+  message(paste0('Number of inferable/realised interactions = ', data$I))
 }
 
 ## MODEL SPECIFICATION -----------------------------------------------------
-# model specified in 'joint_model.stan'
+# model specified in 'joint_model_updated.stan'
 
 ## MODEL EVALUATION --------------------------------------------------------
 # This function takes the posterior draws for interaction estimates extracted from 

@@ -374,8 +374,8 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
     message("Model already compiled")
     load(file.path(Dir.TreatmentIter, "Model.RData"))
   }else{
-    unlink("joint_model.rds")
-    Stan_model <- stan(file = 'joint_model.stan',
+    unlink("joint_model_updated.rds")
+    Stan_model <- stan(file = 'joint_model_updated.stan',
                        data =  StanList_Iter,
                        chains = 1,
                        warmup = nWarmup*nChains/2,

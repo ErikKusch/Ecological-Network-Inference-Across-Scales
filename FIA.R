@@ -253,8 +253,8 @@ for(Treatment_Iter in c(1,8:9)){ # only running this for subsets with > 5000 dat
   options(mc.cores = 1)
   
   ### Model Execution ----
-  unlink(file.path(Dir.Base, "joint_model.rds"))
-  Stan_model <- stan(file = 'joint_model.stan',
+  unlink(file.path(Dir.Base, "joint_model_updated.rds"))
+  Stan_model <- stan(file = 'joint_model_updated.stan',
                      data =  StanList_Iter,
                      chains = 1,
                      warmup = nWarmup*nChains/2,
