@@ -55,7 +55,7 @@ message("############ STARTING HMSC ANALYSES")
 Dir.HMSC <- file.path(DirEx.Region, "HMSC")
 if(!dir.exists(Dir.HMSC)){dir.create(Dir.HMSC)}
 
-for(Treatment_Iter in c(1,8:9)){ # HMSC treatment loop
+for(Treatment_Iter in c(8:9)){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   ECV_vec[1] <- "X2m_temperature"
   colnames(Metadata_df) <- gsub(colnames(Metadata_df), pattern = "2m_temperature", replacement = ECV_vec[1])
@@ -198,7 +198,7 @@ message("############ STARTING IF-REM ANALYSES")
 Dir.IFREM <- file.path(DirEx.Region, "IF_REM")
 if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
-for(Treatment_Iter in c(1,8:9)){ # only running this for subsets with > 5000 data points
+for(Treatment_Iter in c(8:9)){ # only running this for subsets with > 5000 data points
   closeAllConnections()
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
@@ -335,7 +335,7 @@ if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
 }
 
 ### Analysis loop ----
-for(Treatment_Iter in c(1,8:9)){ # HMSC treatment loop
+for(Treatment_Iter in c(8:9)){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
   Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
@@ -406,7 +406,7 @@ message("############ STARTING COCCUR ANALYSES")
 Dir.COOCCUR <- file.path(DirEx.Region, "COCCUR")
 if(!dir.exists(Dir.COOCCUR)){dir.create(Dir.COOCCUR)}
 
-for(Treatment_Iter in c(1,8:9)){ # HMSC treatment loop
+for(Treatment_Iter in c(8:9)){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
   Dir.TreatmentIter <- file.path(Dir.COOCCUR, Treatment_Iter)
