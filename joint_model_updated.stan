@@ -48,7 +48,7 @@ parameters {
 	// IF MODEL PARAMETERS -------------------------------------------------------------
 	vector[S] beta_i0;    									// species-specific intercept 
 	vector[I] beta_ij;  									// vector of interactions which have been realised
-	vector<lower=0>[S] disp_dev; 								// species-specific dispersion deviation parameter
+	vector<lower=0>[S] sigma; 								// species-specific dispersion deviation parameter
 
 	// RE MODEL PARAMETERS ------------------------------------------------------------
 	vector<lower=0>[1] response1; 								// competitive response parameter; >= 0 to avoid bimodality in response and effect  
@@ -115,12 +115,12 @@ model {
 
 	// RESPONSE EFFECT MODEL LIKELIHOOD ---------------------------------------------
 	for(n in 1:N) {										// observation-loop; loop over all observations
-		fitness[n] ~ lognormal(mu[n], disp_dev[species_ID[n]]);					// lognormal outcome distribution, individual mu for each observation and species-specific dispersion parameter
+		fitness[n] ~ lognormal(mu[n], sigma[species_ID[n]]);					// lognormal outcome distribution, individual mu for each observation and species-specific dispersion parameter
 	}											// end of observation loop
 
 	  // add likelihood for the NDDM over inferrable interactions only.
 	  for (n in 1:N) {
-	    target += lognormal_lpdf(fitness[n] | mu2[n], (disp_dev[species_ID[n]]^2)^(-1));
+	    target += lognormal_lpdf(fitness[n] | mu2[n], sigma[species_ID[n]]);
 	  }											// end of interaction loop
   
 }
