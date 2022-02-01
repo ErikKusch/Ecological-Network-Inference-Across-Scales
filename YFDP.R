@@ -387,29 +387,28 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   }
   
   ### Model Diagnostics ----
-  # Get the full posteriors 
+  # Get the full posteriors
   joint.post.draws <- extract.samples(Stan_model)
   # Select parameters of interest
-  param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
+  param.vec <- Stan_model@model_pars[Stan_model@model_pars %nin% c('response1', 'responseSm1', 'lp__')]
   # Draw 1000 samples from the 80% posterior interval for each parameter of interest
   p.samples <- list()
-  p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
+  p.samples <- sapply(param.vec[param.vec %nin% c('ri_betaij', 'ndd_betaij')], function(p) {
     p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
+      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = 100)
     })  # this only works for parameters which are vectors
   })
   # there is only one sigma_alph parameter so we must sample differently:
-  p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
-    joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) & 
-      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
-  # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
-  intrinsic.perf <- log(p.samples$beta_i0)
-  colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
-  inter_mat <- return_inter_array(joint.post.draws = joint.post.draws, 
-                                  response = p.samples$response,
-                                  effect = p.samples$effect,
-                                  focalID = levels(factor(Index_Iter$taxon)),
-                                  neighbourID = colnames(Index_Iter[, -1:-3]))
+  intrinsic.perf <- p.samples$beta_i0
+  colnames(intrinsic.perf) <- levels(factor(Index_df$taxon))
+  # inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
+  #                                 response = p.samples$response,
+  #                                 effect = p.samples$effect,
+  #                                 focalID = levels(factor(Index_Iter$taxon)),
+  #                                 neighbourID = colnames(Index_Iter[, -1:-3]))
+  inter_mat <- aperm(joint.post.draws$ndd_betaij, c(2, 3, 1))
+  rownames(inter_mat) <- levels(factor(Index_df$taxon))
+  colnames(inter_mat) <- levels(factor(Index_df$taxon))
   # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
   try(stan_model_check(fit = Stan_model,
                        results_folder = Dir.TreatmentIter,

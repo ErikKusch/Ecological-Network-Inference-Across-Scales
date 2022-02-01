@@ -44,7 +44,16 @@ if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
 if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", 1:13, ".RData")))) != 13){
   FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), 
           nCores = parallel::detectCores(), 
-          Dir.FIA = Dir.FIA)
+          Dir.FIA = Dir.FIA,
+          Shape = FIA_shp,
+          Name = "BIOMES")
+}
+if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", c(1000:1001, 1003), ".RData")))) != 3){
+  FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), 
+          nCores = parallel::detectCores(), 
+          Dir.FIA = Dir.FIA,
+          Shape = States_shp,
+          Name = "STATES")
 }
 # FIABiomes_fs <- list.files(path = Dir.FIA, pattern = "FIABiome")
 
@@ -198,7 +207,7 @@ message("############ STARTING IF-REM ANALYSES")
 Dir.IFREM <- file.path(DirEx.Region, "IF_REM")
 if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
-for(Treatment_Iter in c(8:9)){ # only running this for subsets with > 5000 data points
+for(Treatment_Iter in c(1000, 1001, 1003, 8:9)){ # "Vermont, Maine, Yosemite, Temperate Broadleaf, Coniferous
   closeAllConnections()
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
@@ -238,7 +247,7 @@ for(Treatment_Iter in c(8:9)){ # only running this for subsets with > 5000 data 
                     ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
                                                    ModelFrames_ls$Community$SiteID),  -1])
   # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-3]) == 0)-3]
-  # Index_df <- Index_df[which(Index_df$value > 0), ]
+  Index_df <- Index_df[which(Index_df$value > 0), ]
   # Index_df <- Index_df[which(Index_df$value > 2.5), ]
   
   ### DATA PREPRATION ####
@@ -253,42 +262,46 @@ for(Treatment_Iter in c(8:9)){ # only running this for subsets with > 5000 data 
   options(mc.cores = 1)
   
   ### Model Execution ----
-  unlink(file.path(Dir.Base, "joint_model_updated.rds"))
-  Stan_model <- stan(file = 'joint_model_updated.stan',
-                     data =  StanList_Iter,
-                     chains = 1,
-                     warmup = nWarmup*nChains/2,
-                     iter = nSamples*nChains/2,
-                     refresh = 100,
-                     control = list(max_treedepth = 10),
-                     model_name = BiomeName
-  )
-  save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
+    message("Model already compiled")
+    load(file.path(Dir.TreatmentIter, "Model.RData"))
+  }else{
+    unlink(file.path(Dir.Base, "joint_model_updated.rds"))
+    Stan_model <- stan(file = 'joint_model_updated.stan',
+                       data =  StanList_Iter,
+                       chains = 1,
+                       warmup = nWarmup*nChains/2,
+                       iter = nSamples*nChains/2,
+                       refresh = 100,
+                       control = list(max_treedepth = 10),
+                       model_name = BiomeName
+    )
+    save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  }
   
   ### Model Diagnostics ----
   # Get the full posteriors
   joint.post.draws <- extract.samples(Stan_model)
   # Select parameters of interest
-  param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
+  param.vec <- Stan_model@model_pars[Stan_model@model_pars %nin% c('response1', 'responseSm1', 'lp__')]
   # Draw 1000 samples from the 80% posterior interval for each parameter of interest
   p.samples <- list()
-  p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
+  p.samples <- sapply(param.vec[param.vec %nin% c('ri_betaij', 'ndd_betaij')], function(p) {
     p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
+      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = 100)
     })  # this only works for parameters which are vectors
   })
   # there is only one sigma_alph parameter so we must sample differently:
-  p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
-    joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) &
-      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
-  # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
-  intrinsic.perf <- log(p.samples$beta_i0)
-  colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
-  inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
-                                  response = p.samples$response,
-                                  effect = p.samples$effect,
-                                  focalID = levels(factor(Index_Iter$taxon)),
-                                  neighbourID = colnames(Index_Iter[, -1:-3]))
+  intrinsic.perf <- p.samples$beta_i0
+  colnames(intrinsic.perf) <- levels(factor(Index_df$taxon))
+  # inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
+  #                                 response = p.samples$response,
+  #                                 effect = p.samples$effect,
+  #                                 focalID = levels(factor(Index_Iter$taxon)),
+  #                                 neighbourID = colnames(Index_Iter[, -1:-3]))
+  inter_mat <- aperm(joint.post.draws$ndd_betaij, c(2, 3, 1))
+  rownames(inter_mat) <- levels(factor(Index_df$taxon))
+  colnames(inter_mat) <- levels(factor(Index_df$taxon))
   # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction
   try(stan_model_check(fit = Stan_model,
                        results_folder = Dir.TreatmentIter,

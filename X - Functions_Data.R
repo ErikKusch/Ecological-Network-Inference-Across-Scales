@@ -110,7 +110,7 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
 }
 
 # FOREST INVENTORY ANALYSIS DATA =========================================
-FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, Dir.FIA = NULL){
+FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, Dir.FIA = NULL, Shape = NULL, Name = NULL){
   Dir.Raw <- file.path(Dir.FIA, "Raw")
   dir.create(Dir.Raw)
   ### EXISTENCE CHECK
@@ -120,11 +120,11 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
   }
   
   ## BIOME SHAPE PREPARATION
-  FIAMerged_shp <- aggregate(FIA_shp, by = "BIOME") # Merge shapes according to biome type
+  FIAMerged_shp <- aggregate(Shape, by = "BIOME") # Merge shapes according to biome type
   FIAMerged_shp@data$Names <- Full_Biomes[match(FIAMerged_shp@data$BIOME, Abbr_Biomes)] # Assign corresponding full text biome names
   
   ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
-  if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
+  if(!file.exists(file.path(Dir.FIA, paste0("FIABiomes_df_", Name, ".rds")))){
     # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
     if(sum(Check_vec) != 0){
       FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Raw, nCores = nCores) # download FIA state data and save it to the FIA directory
@@ -183,9 +183,9 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
       }
     }
     FIABiomass_df <- na.omit(FIABiomass_df) # remove NAs (produced by era5-land not having data for certain plots)
-    saveRDS(FIABiomass_df, file.path(Dir.FIA, "FIABiomes_df.rds"))
+    saveRDS(FIABiomass_df, file.path(Dir.FIA, paste0("FIABiomes_df_", Name, ".rds")))
   }else{
-    FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
+    FIABiomass_df <- readRDS(file.path(Dir.FIA, paste0("FIABiomes_df_", Name, ".rds")))
   }
   
   ## PHYLOGENY 
@@ -203,19 +203,26 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
   
   ## SPLITTING INTO BIOMES
   FIASplit_ls <- split(FIABiomass_df, FIABiomass_df$polyID) # extract for each biome to separate data frame
-  FIASplit_ls <- c(list(FIABiomass_df), FIASplit_ls)
-  names(FIASplit_ls) <- c("ALL", FIAMerged_shp@data$Names) # apply correct names of biomes
-  FIASplit_ls <- FIASplit_ls[-c((length(FIASplit_ls)-1):length(FIASplit_ls))] # remove 98 and 99 biome which is barren and limnic
+  if(Name == "BIOMES"){
+    FIASplit_ls <- c(list(FIABiomass_df), FIASplit_ls)
+    names(FIASplit_ls) <- c("ALL", FIAMerged_shp@data$Names) # apply correct names of biomes
+    FIASplit_ls <- FIASplit_ls[c(1, which(FIAMerged_shp@data$BIOME %nin% c(98, 99))+1)] # remove 98 and 99 biome which is barren and limnic
+  }else{
+    names(FIASplit_ls) <- c(FIAMerged_shp@data$Names) # apply correct names of biomes
+  }
+  
   for(Biome_Iter in 1:length(FIASplit_ls)){
     BiomeName <- names(FIASplit_ls)[Biome_Iter]
     print(BiomeName)
-    if(file.exists(file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
+    if(file.exists(file.path(Dir.FIA, paste0("FIABiome", Abbr_Biomes[which(Full_Biomes == names(FIASplit_ls)[Biome_Iter])], ".RData")))){next()}
     FIAIter_df <- FIASplit_ls[[Biome_Iter]]
     
     ### LMITING by species rarity ----
     SpecsPlots_percentage <- table(FIAIter_df$SCIENTIFIC_NAME)/length(unique(FIAIter_df$pltID))
-    SpecsKeep <- which(SpecsPlots_percentage > .1 | names(SpecsPlots_percentage) %in% Shared_spec) 
+    SpecsKeep <- which(SpecsPlots_percentage > .1 | 
+                         names(SpecsPlots_percentage) %in% Shared_spec) 
     SpecsKeep <- names(SpecsKeep)
+    SpecsKeep <- SpecsKeep[SpecsKeep %nin% names(table(FIAIter_df$SCIENTIFIC_NAME))[table(FIAIter_df$SCIENTIFIC_NAME) < 2] ]
     FIAIter_df <- FIAIter_df[which(FIAIter_df$SCIENTIFIC_NAME %in% SpecsKeep), ]
     
     ### Metadata_df ----
@@ -249,7 +256,7 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
     Phylo_Iter$Dist_Mean <- Phylo_Iter$Dist_Mean[Pos_Safe, Pos_Safe]
     Phylo_Iter$Dist_SD <- Phylo_Iter$Dist_SD[Pos_Safe, Pos_Safe]
     save(BiomeName, Metadata_df, ModelFrames_ls, Phylo_Iter, 
-         file = file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))
+         file = file.path(Dir.FIA, paste0("FIABiome", Abbr_Biomes[which(Full_Biomes == names(FIASplit_ls)[Biome_Iter])], ".RData")))
   }
 }
 
