@@ -344,6 +344,10 @@ if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
 for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
+  if(file.exists(file.path(Dir.TreatmentIter, "Interac.RData"))){
+    message("Model already compiled and evaluated")
+    next()
+  }
   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
   if(file.exists(file.path(Dir.TreatmentIter, "Interac.RData"))){
@@ -423,8 +427,8 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   diag(Interaction_min) <- NA
   Interaction_max <- -Interaction_hpdi[2,,]
   diag(Interaction_max) <- NA
-  Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
-                                    Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
+  Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)[[2]], length(dimnames(Interaction_mean)[[1]])),
+                                    Subject = rep(dimnames(Interaction_mean)[[1]], each = length(dimnames(Interaction_mean)[[2]])),
                                     Inter_mean = as.vector(t(Interaction_mean)),
                                     Inter_min = as.vector(t(Interaction_min)),
                                     Inter_max = as.vector(t(Interaction_max))
