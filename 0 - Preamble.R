@@ -39,7 +39,7 @@ install.load.package <- function(x) {
 
 package_vec <- c(
   "devtools", # needed for non-cran packages further down
-  "rgeos",
+  "rgeos", # for loading shapefiles
   "readxl", # for reading xlsx files
   "sp", # for handling spatialpolygondataframes
   "rgdal", # for loading shapefiles of species ranges
@@ -47,16 +47,16 @@ package_vec <- c(
   "ncdf4", # for ncdf namespace when loading nertcdf files
   "fasterize", # for establishing richness maps in a timely manner
   "sf", # for use of SpatialpolygonsDataFrame objects in fasterize
-  "gimms", # for downloading the reference raster for NDVI data
-  "ggplot2", # for plotting various things
+  # "gimms", # for downloading the reference raster for NDVI data
+  # "ggplot2", # for plotting various things
   "dplyr", # for data manipulation
   "stringr", # for padding numbers
   "rFIA", # for downloading and using Forest Inventory Analysis (FIA) data
   "rstan", # for access to stan
-  "pheatmap", # for heatmaps of interactions
+  # "pheatmap", # for heatmaps of interactions
   "ape", # for calculating phylogenetic distances
-  "qgraph", # for network visualisation
-  "gawdis", # for balanced gower distance
+  # "qgraph", # for network visualisation
+  # "gawdis", # for balanced gower distance
   "reshape2", # for community matrix generation from abundance list
   "phytools", # for averaging of phylogenies
   "Hmsc", # for HMSC models
@@ -66,8 +66,8 @@ package_vec <- c(
   "corrplot", # for HMSC evaluation
   "writexl",
   "cooccur",
-  "netassoc",
-  "BIEN"
+  "netassoc"
+  #, "BIEN"
 )
 sapply(package_vec, install.load.package)
 
