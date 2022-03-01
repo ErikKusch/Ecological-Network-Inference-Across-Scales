@@ -175,11 +175,75 @@ Plots.Compare <- function(Compare_df = NULL,
 
 
 
-
-
-
-
-
+# NETWORKS AS MATRICES ===================================================
+# plotting of networks belonging to the same method as matrices
+Plot.NetMat <- function(method = "COCCUR", data = YFDP_df){ ## currently only works for YFDP
+  plot_df <- data[, c(1:2, grep(colnames(data), pattern = method))]
+  if(method == "HMSC"){
+    plot_df$Difference.abundance <- plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[2]]
+    plot_df$Difference.diametre <- plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[2]]
+    plot_df$Difference.presence_absence <- plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[2]]
+  }else{
+    plot_df$Difference <- plot_df[,3] - plot_df[,4]
+  }
+  
+  
+  plot_df <- reshape(plot_df, 
+                     direction = "long",
+                     varying = list(names(plot_df)[3:ncol(plot_df)]),
+                     v.names = "Value",
+                     idvar = c("Partner1", "Partner2"),
+                     timevar = "Condition",
+                     times = names(plot_df)[3:ncol(plot_df)])
+  plot_df$Condition <- gsub(plot_df$Condition, pattern = paste0(method, "."), replacement = "")
+  
+  if(method == "HMSC"){
+    plot_df$Model <- unlist(lapply(strsplit(plot_df$Condition, ".", fixed = TRUE), "[[", 2))
+    plot_df$Condition <- unlist(lapply(strsplit(plot_df$Condition, ".", fixed = TRUE), "[[", 1))
+  }
+  
+  
+  gplot <- ggplot(plot_df, aes(x = Partner1, y = Partner2, fill = Value)) +
+    geom_tile(color = "white",
+              lwd = 1.5,
+              linetype = 1) + 
+    ## colours, look, and legend
+    
+    coord_fixed() + 
+    guides(fill = guide_colourbar(barwidth = 2,
+                                  barheight = 20,
+                                  title = "Association")) + 
+    ## axes
+    theme_bw() + 
+    theme(axis.text.x=element_text(angle = -20, hjust = 0))
+  
+  if(all(plot_df$Value[!is.na(plot_df$Value)] > 0)){
+    gplot <- gplot + scale_fill_gradient(high = "forestgreen")
+  }else{
+    if(all(plot_df$Value[!is.na(plot_df$Value)] < 0)){
+      gplot <- gplot + scale_fill_gradient(high = "darkred")
+  }else{
+      gplot <- gplot + scale_fill_gradient2(low = "darkred", high = "forestgreen")
+    }
+    }
+  
+  if(method != "IF_REM"){
+    gplot <- gplot + labs(x = "", y = "")
+  }else{
+    gplot <- gplot + labs(x = "Actor", y = "Subject")
+  }
+  
+  if(method != "HMSC"){
+    gplot <- gplot + facet_wrap(~factor(Condition, levels = c("Pre-Fire", "Post-Fire", "Difference")))
+  }else{
+    gplot <- gplot + facet_wrap(~ factor(Model, levels = c("presence_absence", "abundance", "diametre")) +
+                                  factor(Condition, levels = c("Pre-Fire", "Post-Fire", "Difference"))
+                                )
+  }
+  
+  gplot
+  return(gplot)
+}
 
 
 
