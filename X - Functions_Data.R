@@ -384,12 +384,12 @@ ReadOut.Species <- function(List = NULL){
 Flatten.Lists <- function(List_ls = NULL){
   Flat_ls <- unlist(List_ls, recursive = FALSE)
   HMSC_pos <- grep(names(Flat_ls), pattern = "HMSC")
-  NETASSOC_pos <- grep(names(Flat_ls), pattern = "NETASSOC")
+  # NETASSOC_pos <- grep(names(Flat_ls), pattern = "NETASSOC")
   HMSC_ls <- unlist(Flat_ls[HMSC_pos], recursive = FALSE)
-  Flat_ls[NETASSOC_pos] <- lapply(Flat_ls[NETASSOC_pos], FUN = function(x){data.frame(Partner1 = rep(colnames(x), length.out = length(x)),
-                                                                                      Partner2 = rep(rownames(x), each = nrow(x)),
-                                                                                      Effects = as.numeric(x))}
-  )
+  # Flat_ls[NETASSOC_pos] <- lapply(Flat_ls[NETASSOC_pos], FUN = function(x){data.frame(Partner1 = rep(colnames(x), length.out = length(x)),
+  #                                                                                     Partner2 = rep(rownames(x), each = nrow(x)),
+  #                                                                                     Effects = as.numeric(x))}
+  # )
   Flat_ls <- c(Flat_ls[which(1:length(Flat_ls) %nin% HMSC_pos)], HMSC_ls)
 }
 
@@ -414,28 +414,31 @@ Limit.Lists <- function(List_ls, Shared_spec){
   for(Cutoff_Iter in Cutoff_pos){
     if(length(grep(names(merged_ls)[Cutoff_Iter], pattern = "HMSC")) == 1){ # HMSC cutoffs for significance
       ## only retain interactions for which a 90% probability has been identified
-      merged_ls[[Cutoff_Iter]]$Inter_mean[
-        merged_ls[[Cutoff_Iter]]$Inter_ProbPos < 0.9 & 
-          merged_ls[[Cutoff_Iter]]$Inter_ProbNeg < 0.9] <- NA
+      merged_ls[[Cutoff_Iter]]$Sig <- FALSE
+      merged_ls[[Cutoff_Iter]]$Sig[
+        merged_ls[[Cutoff_Iter]]$Inter_ProbPos >= 0.9 | 
+          merged_ls[[Cutoff_Iter]]$Inter_ProbNeg >= 0.9] <- TRUE
     }else{ #IF-REM cutoffs for significance
       # 90% intervals from return_inter_array() function
-      merged_ls[[Cutoff_Iter]]$Inter_mean[abs(rowSums(sign(merged_ls[[Cutoff_Iter]][, 3:5]))) != 3] <- NA
+      merged_ls[[Cutoff_Iter]]$Sig <- FALSE
+      merged_ls[[Cutoff_Iter]]$Sig[which(abs(rowSums(sign(merged_ls[[Cutoff_Iter]][, 3:5]))) == 3)] <- TRUE
     }
+    colnames(merged_ls[[Cutoff_Iter]])[3] <- "effects"
   }
-  NETASSOC_pos <- grep(names(merged_ls), pattern = "NETASSOC")
-  merged_ls[NETASSOC_pos] <- lapply(merged_ls[NETASSOC_pos], FUN = function(x){
-    x$Effects[duplicated(round(x$Effects, 5), incomparables = NA)] <- NA
-    return(x)
-  }
-  )
+  # NETASSOC_pos <- grep(names(merged_ls), pattern = "NETASSOC")
+  # merged_ls[NETASSOC_pos] <- lapply(merged_ls[NETASSOC_pos], FUN = function(x){
+  #   x$Effects[duplicated(round(x$Effects, 5), incomparables = NA)] <- NA
+  #   return(x)
+  # }
+  # )
   return(merged_ls)
 }
 
 # EFFECT DATA FRAME ======================================================
 ## extracting only the estimates of associations/interactions from limited lists obtained with Limit.Lists()
 Eff.Data.Frame <- function(List_ls = NULL){
-  List_df <- do.call("cbind", lapply(List_ls, `[`, 3))
-  colnames(List_df) <- names(List_ls)
+  List_df <- do.call("cbind", lapply(List_ls, `[`, c("effects", "Sig")))
+  # colnames(List_df) <- names(List_ls)
   List_df <- cbind(List_ls[[1]][ , 1:2], List_df)
   return(List_df)
 }

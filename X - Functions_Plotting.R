@@ -179,22 +179,51 @@ Plots.Compare <- function(Compare_df = NULL,
 # plotting of networks belonging to the same method as matrices
 Plot.NetMat <- function(method = "COCCUR", data = YFDP_df){ ## currently only works for YFDP
   plot_df <- data[, c(1:2, grep(colnames(data), pattern = method))]
+  
   if(method == "HMSC"){
-    plot_df$Difference.abundance <- plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[2]]
-    plot_df$Difference.diametre <- plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[2]]
-    plot_df$Difference.presence_absence <- plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[2]]
+    
+    EffectCol <- c(grep(colnames(plot_df), pattern = "effects"), ncol(plot_df)+c(1,3,5) )
+    SigCol <- c(grep(colnames(plot_df), pattern = "Sig"), ncol(plot_df)+c(2,4,6) )
+    
+    plot_df$Difference.abundance <- plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[3]]
+    plot_df$Difference.abundance.Sig <- ifelse(rowSums(plot_df[, grep(x = colnames(plot_df), pattern = "abundance")[c(2,4)]]) == 2, TRUE, FALSE)
+    
+    plot_df$Difference.diametre <- plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[3]]
+    plot_df$Difference.diametre.Sig <- ifelse(rowSums(plot_df[, grep(x = colnames(plot_df), pattern = "diametre")[c(2,4)]]) == 2, TRUE, FALSE)
+    
+    plot_df$Difference.presence_absence <- plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[1]] - plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[3]]
+    plot_df$Difference.presence_absence.Sig <- ifelse(rowSums(plot_df[, grep(x = colnames(plot_df), pattern = "presence_absence")[c(2,4)]]) == 2, TRUE, FALSE)
+    
   }else{
-    plot_df$Difference <- plot_df[,3] - plot_df[,4]
+    EffectCol <- c(grep(colnames(plot_df), pattern = "effects"), ncol(plot_df)+1)
+    SigCol <- c(grep(colnames(plot_df), pattern = "Sig"), ncol(plot_df)+2)
+    plot_df$Difference <- plot_df[,EffectCol[1]] - plot_df[,EffectCol[2]]
+    plot_df$Difference.Sig <- ifelse(rowSums(plot_df[,SigCol[1:2]]) == 2, TRUE, FALSE)
   }
   
   
-  plot_df <- reshape(plot_df, 
+  effect_df <- reshape(plot_df, 
                      direction = "long",
-                     varying = list(names(plot_df)[3:ncol(plot_df)]),
+                     varying = list(names(plot_df)[EffectCol]),
                      v.names = "Value",
                      idvar = c("Partner1", "Partner2"),
                      timevar = "Condition",
-                     times = names(plot_df)[3:ncol(plot_df)])
+                     times = names(plot_df)[EffectCol])
+  
+  sig_df <- reshape(plot_df, 
+                       direction = "long",
+                       varying = list(names(plot_df)[SigCol]),
+                       v.names = "Sig",
+                       idvar = c("Partner1", "Partner2"),
+                       timevar = "Condition",
+                       times = names(plot_df)[SigCol])
+  
+  plot_df <- data.frame(Partner1 = effect_df$Partner1,
+                        Partner2 = effect_df$Partner2,
+                        Value = effect_df$Value,
+                        Sig = sig_df$Sig,
+                        Condition = effect_df$Condition)
+  plot_df$Condition <-  gsub(plot_df$Condition, pattern = ".effects", replacement = "")
   plot_df$Condition <- gsub(plot_df$Condition, pattern = paste0(method, "."), replacement = "")
   
   if(method == "HMSC"){
@@ -203,15 +232,22 @@ Plot.NetMat <- function(method = "COCCUR", data = YFDP_df){ ## currently only wo
   }
   
   
-  gplot <- ggplot(plot_df, aes(x = Partner1, y = Partner2, fill = Value)) +
+  if(method == "NETASSOC"){
+    gplot <- ggplot(plot_df, aes(x = Partner2, y = Partner1, fill = Value))
+  }else{
+    gplot <- ggplot(plot_df, aes(x = Partner1, y = Partner2, fill = Value))
+  }
+    gplot <- gplot +
     geom_tile(color = "white",
               lwd = 1.5,
               linetype = 1) + 
     ## colours, look, and legend
-    
+    geom_point(aes(shape = Sig), size = 4) +
+    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+    guides(shape = FALSE) + 
     coord_fixed() + 
     guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 20,
+                                  barheight = 15,
                                   title = "Association")) + 
     ## axes
     theme_bw() + 

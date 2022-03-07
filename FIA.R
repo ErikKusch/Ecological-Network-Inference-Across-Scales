@@ -408,12 +408,27 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
     next()
   }
   ### Model Execution ####
-  model_netassoc <- make_netassoc_network(obs = t(mat_Iter), 
-                                          nul = t(Null_mat),
-                                          plot = FALSE, verbose = FALSE)
-  save(model_netassoc, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
+    print("Model already compiled")
+    load(file.path(Dir.TreatmentIter, "Model.RData"))
+  }else{
+    model_netassoc <- make_netassoc_network(obs = t(mat_Iter), 
+                                            plot = FALSE, verbose = FALSE)
+    save(model_netassoc, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  }
+  
   ### Interaction/Association Matrix ----
-  Interac_df <- model_netassoc$matrix_spsp_ses_thresholded
+  # Interac_df <- model_netassoc$matrix_spsp_ses_thresholded
+  Interac_df <- list(Effects = model_netassoc$matrix_spsp_ses_all,
+                     p = model_netassoc$matrix_spsp_pvalue)
+  Interac_df <- data.frame(Partner1 = rep(rownames(Interac_df$Effects), each = ncol(Interac_df$Effects)),
+                           Partner2 = rep(colnames(Interac_df$Effects), nrow(Interac_df$Effects)),
+                           effects = as.numeric(Interac_df$Effects), 
+                           p = as.numeric(Interac_df$p),
+                           Sig = as.numeric(Interac_df$p) < 0.05
+  )
+  
+  Interac_df <- Interac_df[as.vector(upper.tri(model_netassoc$matrix_spsp_ses_all)), ]
   save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) 
 }
 
@@ -444,17 +459,27 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   mat_Iter[is.na(mat_Iter)] <- 0
   mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
   ### Model Execution ####
-  model_coccurr <- cooccur(mat = t(mat_Iter), 
-                           type = "spp_site", thresh = FALSE, spp_names = TRUE)
-  save(model_coccurr, file = file.path(Dir.TreatmentIter, "Model.RData"))
-  ### Interaction/Association Matrix ----
-  test <- tryCatch(plot(model_coccurr))
-  if(nrow(test$data) != 0){
-    jpeg(file=file.path(Dir.TreatmentIter, "Cooccur_Assocs.jpeg"), width = 32, height = 32, units = "cm", res = 100)
-    print(test)
-    dev.off() 
+  if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
+    print("Model already compiled")
+    load(file.path(Dir.TreatmentIter, "Model.RData"))
+  }else{
+    model_coccurr <- cooccur(mat = t(mat_Iter), 
+                             type = "spp_site", thresh = FALSE, spp_names = TRUE)
+    save(model_coccurr, file = file.path(Dir.TreatmentIter, "Model.RData"))
   }
+  
+  ### Interaction/Association Matrix ----
+  # test <- tryCatch(plot(model_coccurr))
+  # if(nrow(test$data) != 0){
+  #   jpeg(file=file.path(Dir.TreatmentIter, "Cooccur_Assocs.jpeg"), width = 32, height = 32, units = "cm", res = 100)
+  #   print(test)
+  #   dev.off() 
+  # }
   Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
+  Interac_df$pLT <- prob.table(model_coccurr)$p_lt
+  Interac_df$pGT <- prob.table(model_coccurr)$p_gt
+  Interac_df$Sig <- Interac_df[,4] < 0.05 | Interac_df[,5] < 0.05
+  colnames(Interac_df)[1:2] <- c("Partner1", "Partner2")
   save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) # In standardized form, these values are bounded from -1 to 1, with positive values indicating positive associations and negative values indication negative associations; see 10.18637/jss.v069.c02
 }
 
