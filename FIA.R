@@ -83,14 +83,14 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   print(nrow(Metadata_df))
   sink()
   
-  ### REMOVAL OF NON-FOCAL SPECIES FOR COMPARISON ###
-  Phylo_Iter$Avg_Phylo <- drop.tip(Phylo_Iter$Avg_Phylo, Phylo_Iter$Avg_Phylo$tip.label[Phylo_Iter$Avg_Phylo$tip.label %nin% Shared_spec])
-  if(is.null(Phylo_Iter$Avg_Phylo)){
-    print("All shared species absent")
-    next()
-  }
-  ModelFrames_ls$FitCom <- ModelFrames_ls$FitCom[, colnames(ModelFrames_ls$FitCom) %in% Shared_spec]
-  ModelFrames_ls$Community <- ModelFrames_ls$Community[, colnames(ModelFrames_ls$Community) %in% Shared_spec]
+  # ### REMOVAL OF NON-FOCAL SPECIES FOR COMPARISON ###
+  # Phylo_Iter$Avg_Phylo <- drop.tip(Phylo_Iter$Avg_Phylo, Phylo_Iter$Avg_Phylo$tip.label[Phylo_Iter$Avg_Phylo$tip.label %nin% Shared_spec])
+  # if(is.null(Phylo_Iter$Avg_Phylo)){
+  #   print("All shared species absent")
+  #   next()
+  # }
+  # ModelFrames_ls$FitCom <- ModelFrames_ls$FitCom[, colnames(ModelFrames_ls$FitCom) %in% Shared_spec]
+  # ModelFrames_ls$Community <- ModelFrames_ls$Community[, colnames(ModelFrames_ls$Community) %in% Shared_spec]
   
   ### DATA PREPRATION ####
   Phylo_Iter <- Phylo_Iter$Avg_Phylo
