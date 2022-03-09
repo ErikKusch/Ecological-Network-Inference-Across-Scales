@@ -66,8 +66,8 @@ package_vec <- c(
   "corrplot", # for HMSC evaluation
   "writexl",
   "cooccur",
-  "netassoc"
-  #, "BIEN"
+  "netassoc", 
+  "BIEN"
 )
 sapply(package_vec, install.load.package)
 

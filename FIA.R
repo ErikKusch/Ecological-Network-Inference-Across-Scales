@@ -338,11 +338,13 @@ Dir.NETASSOC <- file.path(DirEx.Region, "NETASSOC")
 if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 
 ### Null model ranges ----
+
+FIABiomass_df <- rbind(readRDS(file.path(Dir.FIA, "FIABiomes_df_BIOMES.rds")),
+      readRDS(file.path(Dir.FIA, "FIABiomes_df_STATES.rds")))
+
 if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
-  FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
   load(file.path(Dir.FIA, "Ranges_poly.RData"))
 }else{
-  FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
   Range_specs <- unique(FIABiomass_df$SCIENTIFIC_NAME)
   Ranges_spoly <- BIEN_ranges_load_species(species = Range_specs)
   Ranges_spoly <- st_as_sf(Ranges_spoly)
