@@ -8,12 +8,13 @@
 #' ####################################################################### #
 
 # HMSC =====================================================================
-HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSamples = nSamples, nChains = nChains){
+HMSC.Eval <- function(hmsc_model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSamples = nSamples, nChains = nChains){
   ma <- NULL
   na <- NULL
   ### MCMC convergence ----
-  mpost <- convertToCodaObject(Model, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
+  mpost <- convertToCodaObject(hmsc_model, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
   psrf.beta <- gelman.diag(mpost$Beta,multivariate=FALSE)$psrf # "if these are smaller than 1.05, we are quite happy"
+  rm(mpost)
   tmp <- summary(psrf.beta)
   if(is.null(ma)){
     ma=psrf.beta[,1]
@@ -26,20 +27,23 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
       na = c(na,"")
     }
   }
+  rm(psrf.beta)
   jpeg(file=file.path(Dir, paste0(Name, "_MCMC_convergence.jpeg")), width = 32, height = 32, units = "cm", res = 100)
   par(mfrow=c(2,1))
   vioplot(ma,col=rainbow_hcl(1),names=na,ylim=c(0,max(ma)),main="psrf(beta)")
   vioplot(ma,col=rainbow_hcl(1),names=na,ylim=c(0.9,1.1),main="psrf(beta)")
   dev.off()
+  rm(ma)
   
   ### Model Fit ----
-  m <- Model
-  preds <- tryCatch(computePredictedValues(m)) # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
-  MF <- evaluateModelFit(hM=m, predY=preds)
-  # partition <- createPartition(m, nfolds = 2)
-  # preds2 <- computePredictedValues(m,partition=partition, nParallel = nChains)  # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
-  # MFCV <- evaluateModelFit(hM=m, predY=preds2)
-  # WAIC <- computeWAIC(m)
+  preds <- tryCatch(computePredictedValues(hmsc_model)) # cannot compute due to RAM limitations
+  MF <- evaluateModelFit(hM=hmsc_model, predY=preds)
+  rm(preds)
+  gc()
+  # partition <- createPartition(hmsc_model, nfolds = 2)
+  # preds2 <- computePredictedValues(hmsc_model,partition=partition, nParallel = nChains)  # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
+  # MFCV <- evaluateModelFit(hM=hmsc_model, predY=preds2)
+  # WAIC <- computeWAIC(hmsc_model)
   # filename_out <- file.path(Dir, paste0(Name, "_MF_thin_", as.character(thin),
   #                                       "_samples_", as.character(nSamples),
   #                                       "_chains_",as.character(nChains),
@@ -77,11 +81,13 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
   
   ### PARAMETER ESTIMATES ----
   pdf(file = file.path(Dir, paste0(Name, "_parameter_estimates.pdf")))
-  VP <- computeVariancePartitioning(Model)
+  VP <- computeVariancePartitioning(hmsc_model)
   vals <- VP$vals
   mycols <- rainbow(nrow(VP$vals))
-  plotVariancePartitioning(hM=Model, VP=VP,cols = mycols, args.leg=list(bg="white",cex=0.7),
+  plotVariancePartitioning(hM=hmsc_model, VP=VP,cols = mycols, args.leg=list(bg="white",cex=0.7),
                            main = paste0("Proportion of explained variance, ",Name),cex.main=0.8)
+  
+  write.csv(vals,file=file.path(Dir, paste0(Name, "_parameter_estimates_VP.csv")))
   R2 <- NULL
   if(!is.null(MF$TjurR2)){
     TjurR2 <- MF$TjurR2
@@ -92,61 +98,62 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
     R2 <- MF$R2
     vals <- rbind(vals,R2)
   }
-  write.csv(vals,file=file.path(Dir, paste0(Name, "_parameter_estimates_VP.csv")))
+  rm(MF)
   if(!is.null(R2)){
     VPr <- VP
-    for(k in 1:m$ns){
+    for(k in 1:hmsc_model$ns){
       VPr$vals[,k] <- R2[k]*VPr$vals[,k]
     }
     VPr$vals <- VPr$vals[,order(-R2)]
-    plotVariancePartitioning(hM=Model, VP=VPr,cols = mycols, args.leg=list(bg="white",cex=0.7),ylim=c(0,1),
+    plotVariancePartitioning(hM=hmsc_model, VP=VPr,cols = mycols, args.leg=list(bg="white",cex=0.7),ylim=c(0,1),
                              main=paste0("Proportion of raw variance, ",Name),cex.main=0.8)
   }
-  postBeta = getPostEstimate(Model, parName="Beta")
-  show.sp.names = (is.null(Model$phyloTree) && Model$ns<=20) 
-  plotBeta(Model, post=postBeta, supportLevel = 0.95,param="Sign",
-           plotTree = !is.null(Model$phyloTree),
+  rm(VP)
+  postBeta = getPostEstimate(hmsc_model, parName="Beta")
+  show.sp.names = (is.null(hmsc_model$phyloTree) && hmsc_model$ns<=20) 
+  plotBeta(hmsc_model, post=postBeta, supportLevel = 0.95,param="Sign",
+           plotTree = !is.null(hmsc_model$phyloTree),
            covNamesNumbers = c(TRUE,FALSE),
            spNamesNumbers=c(show.sp.names,FALSE),
            cex=c(0.6,0.6,0.8))
   mymain = paste0("BetaPlot, ",Name)
-  if(!is.null(Model$phyloTree)){
-    mpost = convertToCodaObject(Model)
+  if(!is.null(hmsc_model$phyloTree)){
+    mpost = convertToCodaObject(hmsc_model)
     rhovals = unlist(poolMcmcChains(mpost$Rho))
     mymain = paste0(mymain,", E[rho] = ",round(mean(rhovals),2),", Pr[rho>0] = ",round(mean(rhovals>0),2))
   }
   title(main=mymain, line=2.5, cex.main=0.8)
   me = as.data.frame(t(postBeta$mean))
-  me = cbind(Model$spNames,me)
-  colnames(me) = c("Species",Model$covNames)
+  me = cbind(hmsc_model$spNames,me)
+  colnames(me) = c("Species",hmsc_model$covNames)
   po = as.data.frame(t(postBeta$support))
-  po = cbind(Model$spNames,po)
-  colnames(po) = c("Species",Model$covNames)
+  po = cbind(hmsc_model$spNames,po)
+  colnames(po) = c("Species",hmsc_model$covNames)
   ne = as.data.frame(t(postBeta$supportNeg))
-  ne = cbind(Model$spNames,ne)
-  colnames(ne) = c("Species",Model$covNames)
+  ne = cbind(hmsc_model$spNames,ne)
+  colnames(ne) = c("Species",hmsc_model$covNames)
   vals = list("Posterior mean"=me,"Pr(x>0)"=po,"Pr(x<0)"=ne)
   writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Beta.xlsx")))
-  if(Model$nt>1){
-    postGamma = getPostEstimate(Model, parName="Gamma")
-    plotGamma(Model, post=postGamma, supportLevel = 0.9, param="Sign",
+  if(hmsc_model$nt>1){
+    postGamma = getPostEstimate(hmsc_model, parName="Gamma")
+    plotGamma(hmsc_model, post=postGamma, supportLevel = 0.9, param="Sign",
               covNamesNumbers = c(TRUE,FALSE),
-              trNamesNumbers=c(m$nt<21,FALSE),
+              trNamesNumbers=c(hmsc_model$nt<21,FALSE),
               cex=c(0.6,0.6,0.8))
     title(main=paste0("GammaPlot ",Name), line=2.5,cex.main=0.8)
   }
-  OmegaCor = computeAssociations(Model)
+  OmegaCor = computeAssociations(hmsc_model)
   supportLevel = 0.95
-  for (r in 1:Model$nr){
+  for (r in 1:hmsc_model$nr){
     plotOrder = corrMatOrder(OmegaCor[[r]]$mean,order="AOE")
     toPlot = ((OmegaCor[[r]]$support>supportLevel) + (OmegaCor[[r]]$support<(1-supportLevel))>0)*sign(OmegaCor[[r]]$mean)
-    if(Model$ns>20){
-      colnames(toPlot)=rep("",Model$ns)
-      rownames(toPlot)=rep("",Model$ns)
+    if(hmsc_model$ns>20){
+      colnames(toPlot)=rep("",hmsc_model$ns)
+      rownames(toPlot)=rep("",hmsc_model$ns)
     }
-    mymain = paste0("Associations, ",Name, ": ",names(Model$ranLevels)[[r]])
-    if(Model$ranLevels[[r]]$sDim>0){
-      mpost = convertToCodaObject(Model)
+    mymain = paste0("Associations, ",Name, ": ",names(hmsc_model$ranLevels)[[r]])
+    if(hmsc_model$ranLevels[[r]]$sDim>0){
+      mpost = convertToCodaObject(hmsc_model)
       alphavals = unlist(poolMcmcChains(mpost$Alpha[[1]][,1]))
       mymain = paste0(mymain,", E[alpha1] = ",round(mean(alphavals),2),", Pr[alpha1>0] = ",round(mean(alphavals>0),2))
     }
@@ -156,16 +163,16 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
              main=mymain,cex.main=0.8)
     
     me = as.data.frame(OmegaCor[[r]]$mean)
-    me = cbind(Model$spNames,me)
+    me = cbind(hmsc_model$spNames,me)
     colnames(me)[1] = ""
     po = as.data.frame(OmegaCor[[r]]$support)
-    po = cbind(Model$spNames,po)
+    po = cbind(hmsc_model$spNames,po)
     colnames(po)[1] = ""
     ne = as.data.frame(1-OmegaCor[[r]]$support)
-    ne = cbind(Model$spNames,ne)
+    ne = cbind(hmsc_model$spNames,ne)
     colnames(ne)[1] = ""
     vals = list("Posterior mean"=me,"Pr(x>0)"=po,"Pr(x<0)"=ne)
-    writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Omega_",names(Model$ranLevels)[[r]],".xlsx")))
+    writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Omega_",names(hmsc_model$ranLevels)[[r]],".xlsx")))
   }
   dev.off()
   return(vals)

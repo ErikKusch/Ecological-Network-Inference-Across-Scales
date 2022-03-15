@@ -317,7 +317,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
 
     ### Model Evaluation ----
     message("Evaluation")
-    vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
+    vals <- HMSC.Eval(hmsc_model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
     ### Interaction/Association Matrix ----
     Interaction_mean <- vals$`Posterior mean`[,-1]
     Interaction_ProbPos <- vals$`Pr(x>0)`[,-1]

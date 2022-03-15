@@ -24,7 +24,7 @@ source("X - Functions_Data.R")
 
 ## Bayes Settings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 nSamples <- 9000
-nWarmup <- 1000
+nWarmup <- 100
 nChains <- 4
 thin <- 1
 
@@ -72,25 +72,31 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$Fitness), "Observations )"))
   Dir.TreatmentIter <- file.path(Dir.HMSC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
+  
+  ### REMOVAL OF NON-FOCAL SPECIES FOR COMPARISON ###
+  if(Treatment_Iter == 8){
+    Shared_spec <- c("Acer rubrum", "Fagus grandifolia", "Acer saccharum", "Quercus rubra", "Fraxinus americana", "Pinus strobus", "Populus tremuloides", "Betula alleghaniensis", "Abies balsamea", "Betula papyrifera" )
+    Phylo_Iter$Avg_Phylo <- drop.tip(Phylo_Iter$Avg_Phylo, Phylo_Iter$Avg_Phylo$tip.label[Phylo_Iter$Avg_Phylo$tip.label %nin% Shared_spec])
+    if(is.null(Phylo_Iter$Avg_Phylo)){
+      print("All shared species absent")
+      next()
+    }
+    ModelFrames_ls$FitCom <- ModelFrames_ls$FitCom[, colnames(ModelFrames_ls$FitCom) %in% Shared_spec]
+    ModelFrames_ls$Community <- ModelFrames_ls$Community[, colnames(ModelFrames_ls$Community) %in% Shared_spec]
+  }
+  
+  # table(ModelFrames_ls$Fitness$taxon)
+  
   sink(file.path(Dir.TreatmentIter, "Biome.txt"))
   print("BIOME")
   print(BiomeName)
   print("OBSERVATIONS")
-  print(nrow(ModelFrames_ls$Fitness))
+  print(sum(ModelFrames_ls$Fitness$taxon %in% Phylo_Iter$Avg_Phylo$tip.label))
   print("SPECIES")
-  print(nrow(Phylo_Iter$Dist_Mean))
+  print(length(Phylo_Iter$Avg_Phylo$tip.label))
   print("SITES")
   print(nrow(Metadata_df))
   sink()
-  
-  # ### REMOVAL OF NON-FOCAL SPECIES FOR COMPARISON ###
-  # Phylo_Iter$Avg_Phylo <- drop.tip(Phylo_Iter$Avg_Phylo, Phylo_Iter$Avg_Phylo$tip.label[Phylo_Iter$Avg_Phylo$tip.label %nin% Shared_spec])
-  # if(is.null(Phylo_Iter$Avg_Phylo)){
-  #   print("All shared species absent")
-  #   next()
-  # }
-  # ModelFrames_ls$FitCom <- ModelFrames_ls$FitCom[, colnames(ModelFrames_ls$FitCom) %in% Shared_spec]
-  # ModelFrames_ls$Community <- ModelFrames_ls$Community[, colnames(ModelFrames_ls$Community) %in% Shared_spec]
   
   ### DATA PREPRATION ####
   Phylo_Iter <- Phylo_Iter$Avg_Phylo
@@ -182,7 +188,8 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
     
     ### Model Evaluation ----
     message("Evaluation")
-    vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
+    vals <- HMSC.Eval(hmsc_model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname,
+                      thin = thin, nSamples = nSamples, nChains = nChains)
     ### Interaction/Association Matrix ----
     Interaction_mean <- vals$`Posterior mean`[,-1]
     Interaction_ProbPos <- vals$`Pr(x>0)`[,-1]
