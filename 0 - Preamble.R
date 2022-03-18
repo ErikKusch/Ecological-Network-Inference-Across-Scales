@@ -48,7 +48,7 @@ package_vec <- c(
   "fasterize", # for establishing richness maps in a timely manner
   "sf", # for use of SpatialpolygonsDataFrame objects in fasterize
   # "gimms", # for downloading the reference raster for NDVI data
-  # "ggplot2", # for plotting various things
+  "ggplot2", # for plotting various things
   "dplyr", # for data manipulation
   "stringr", # for padding numbers
   "rFIA", # for downloading and using Forest Inventory Analysis (FIA) data
@@ -67,7 +67,11 @@ package_vec <- c(
   "writexl",
   "cooccur",
   "netassoc", 
-  "BIEN"
+  "BIEN",
+  "cowplot",
+  "igraph", # for centrality and modularity
+  "maxnodf", # for nestedness
+  "scales"
 )
 sapply(package_vec, install.load.package)
 
@@ -117,3 +121,5 @@ hush <- function(code){
 Sort.DF <- function(Data = NULL, Column = NULL){
   Data[order(Data[ , Column] ), ]
 }
+
+range01 <- function(x){(x-min(x))/(max(x)-min(x))}

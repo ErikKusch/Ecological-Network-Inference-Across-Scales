@@ -370,10 +370,11 @@ Load.Results <- function(Dir = NULL){
 # SPECIES READOUT ========================================================
 # identifying the species which are included in the result lists read in via the Load.Results() function
 ReadOut.Species <- function(List = NULL){
+  COC_pos <- which(grepl(pattern = "COCCUR", x = names(List)))
   Species_vec <- unique(
     c(
-      unique(unlist(List)[grep(pattern = "Partner", x = names(unlist(List[["COCCUR"]])))]),
-      unique(unlist(List)[grep(pattern = ".sp", x = names(unlist(List[["COCCUR"]])))])
+      unique(unlist(List)[grep(pattern = "Partner", x = names(unlist(List[COC_pos])))]),
+      unique(unlist(List)[grep(pattern = ".sp", x = names(unlist(List[COC_pos])))])
     )
   )
   return(Species_vec) 
@@ -399,6 +400,9 @@ Limit.Lists <- function(List_ls, Shared_spec){
   ## Merge Results with data frame of possible interaction specifications
   Interacs_df <- as.data.frame(expand.grid(Shared_spec, Shared_spec))
   colnames(Interacs_df) <- c("Partner1", "Partner2")
+  if(length(-which(unlist(lapply(List_ls, is.character)))) > 0){
+    List_ls <- List_ls[-which(unlist(lapply(List_ls, is.character)))]
+  }
   merged_ls <- lapply(List_ls,
                       function(x){
                         colnames(x)[1:2] <- c("Partner1", "Partner2")
@@ -448,11 +452,13 @@ Eff.Data.Frame <- function(List_ls = NULL){
 BiomeNames.List<- function(List_ls = NULL){
   Biomes_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 2))
   Methods_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 1))
+  HMSC_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 3))
   Biomes_vec <- sapply(Biomes_vec, FUN = function(x){
     load(file.path(Dir.FIA, paste0("FIABiome",x,".RData")))
     return(BiomeName)
   })
-  names(List_ls) <- paste(Methods_vec, Biomes_vec, sep = ".")
+  names(List_ls) <- paste(Methods_vec, Biomes_vec, HMSC_vec, sep = ".")
+  names(List_ls) <- gsub(names(List_ls), pattern = ".NA", replacement = "")
   return(List_ls)
 }
 
