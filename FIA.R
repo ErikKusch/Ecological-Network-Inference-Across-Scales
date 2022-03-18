@@ -102,8 +102,14 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   Phylo_Iter <- Phylo_Iter$Avg_Phylo
   S <- Metadata_df[, c("SiteID", "YEAR")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
   X <- Metadata_df[,-1:-2] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
-  Y_BM <- ModelFrames_ls$FitCom[ , -1] # Y: species data
-  Y_AB <- ModelFrames_ls$Community[ , -1] # Y: species data
+  if(Treatment_Iter == 8){
+    Y_BM <- ModelFrames_ls$FitCom
+    Y_AB <- ModelFrames_ls$Community
+  }else{
+    Y_BM <- ModelFrames_ls$FitCom[ , -1] # Y: species data
+    Y_AB <- ModelFrames_ls$Community[ , -1] # Y: species data
+  }
+  
   P <- Phylo_Iter # P: phylogenetic information given by taxonomical levels, e.g. order, family, genus, species; If TP does not have phylogenetic data (because you don't have such data at all, or because, it is given in tree-format, like is the case in this example), indicate this with P=NULL
   Tr <- NULL # Tr: species traits (note that T is a reserved word in R and that's why we use Tr); If you don't have trait data, indicate this by Tr=NULL.
   
