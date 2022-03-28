@@ -167,7 +167,7 @@ HMSC_plot3 <- ggplot(HMSC_dat[HMSC_dat$Model == "Performance",], aes(x = Partner
 
 ### IF_REM ----
 IFREM_dat <- Plot.NetMat(data = YFDP_df, method = "IF_REM", datareturn = TRUE) 
-IFREM_dat <- IF-REM_dat[IFREM_dat$Condition == "Pre-Fire", ]
+IFREM_dat <- IFREM_dat[IFREM_dat$Condition == "Pre-Fire", ]
 
 IFREM_plot <- ggplot(IFREM_dat, aes(x = Partner2, y = Partner1, fill = Value)) +
   geom_tile(color = "white",
