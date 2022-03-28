@@ -16,7 +16,6 @@ Dir.Data <- file.path(Dir.Base, "Data_Reduced")
 Dir.YFDP <- file.path(Dir.Data, "YFDP")
 Dir.Region <- file.path(Dir.Data, "FIA")
 Dir.FIA <- file.path(Dir.Data, "RAW_FIA")
-# Dir.Observations <- file.path(Dir.Data, "Observations")
 Dir.Shapes <- file.path(Dir.Data, "Shapes")
 DataDirs <- c(Dir.Data, Dir.Shapes, Dir.YFDP, Dir.Region, Dir.FIA)
 CreateDir <- sapply(DataDirs, function(x) if(!dir.exists(x)) dir.create(x))
@@ -24,7 +23,6 @@ CreateDir <- sapply(DataDirs, function(x) if(!dir.exists(x)) dir.create(x))
 Dir.Exports <- file.path(Dir.Base, "Exports_Reduced")
 DirEx.YFDP <- file.path(Dir.Exports, "YFDP")
 DirEx.Region <- file.path(Dir.Exports, "FIA")
-# DirEx.Observations <- file.path(Dir.Exports, "Observations")
 ExportDirs <- c(Dir.Exports, DirEx.YFDP, DirEx.Region)
 CreateDir <- sapply(ExportDirs, function(x) if(!dir.exists(x)) dir.create(x))
 rm(list = c("CreateDir", "ExportDirs", "DataDirs"))
@@ -55,7 +53,7 @@ package_vec <- c(
   "rstan", # for access to stan
   # "pheatmap", # for heatmaps of interactions
   "ape", # for calculating phylogenetic distances
-  # "qgraph", # for network visualisation
+  "qgraph", # for network visualisation
   # "gawdis", # for balanced gower distance
   "reshape2", # for community matrix generation from abundance list
   "phytools", # for averaging of phylogenies
@@ -71,7 +69,8 @@ package_vec <- c(
   "cowplot",
   "igraph", # for centrality and modularity
   "maxnodf", # for nestedness
-  "scales"
+  "scales",
+  "gridExtra"
 )
 sapply(package_vec, install.load.package)
 
