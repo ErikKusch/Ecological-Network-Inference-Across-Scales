@@ -12,20 +12,18 @@
 # DIRECTORIES ===============================================================
 Dir.Base <- getwd() # read out the project directory
 ## DATA ---------------------------------------------------------------------
-Dir.Data <- file.path(Dir.Base, "Data")
+Dir.Data <- file.path(Dir.Base, "Data_Reduced")
 Dir.YFDP <- file.path(Dir.Data, "YFDP")
-Dir.Region <- file.path(Dir.Data, "Regional")
+Dir.Region <- file.path(Dir.Data, "FIA")
 Dir.FIA <- file.path(Dir.Data, "RAW_FIA")
-Dir.Observations <- file.path(Dir.Data, "Observations")
 Dir.Shapes <- file.path(Dir.Data, "Shapes")
-DataDirs <- c(Dir.Data, Dir.Shapes, Dir.YFDP, Dir.Region, Dir.FIA, Dir.Observations)
+DataDirs <- c(Dir.Data, Dir.Shapes, Dir.YFDP, Dir.Region, Dir.FIA)
 CreateDir <- sapply(DataDirs, function(x) if(!dir.exists(x)) dir.create(x))
 ## EXPORTS ------------------------------------------------------------------
-Dir.Exports <- file.path(Dir.Base, "Exports")
+Dir.Exports <- file.path(Dir.Base, "Exports_Reduced")
 DirEx.YFDP <- file.path(Dir.Exports, "YFDP")
-DirEx.Region <- file.path(Dir.Exports, "Region")
-DirEx.Observations <- file.path(Dir.Exports, "Observations")
-ExportDirs <- c(Dir.Exports, DirEx.YFDP, DirEx.Region, DirEx.Observations)
+DirEx.Region <- file.path(Dir.Exports, "FIA")
+ExportDirs <- c(Dir.Exports, DirEx.YFDP, DirEx.Region)
 CreateDir <- sapply(ExportDirs, function(x) if(!dir.exists(x)) dir.create(x))
 rm(list = c("CreateDir", "ExportDirs", "DataDirs"))
 
@@ -39,7 +37,7 @@ install.load.package <- function(x) {
 
 package_vec <- c(
   "devtools", # needed for non-cran packages further down
-  "rgeos",
+  "rgeos", # for loading shapefiles
   "readxl", # for reading xlsx files
   "sp", # for handling spatialpolygondataframes
   "rgdal", # for loading shapefiles of species ranges
@@ -47,16 +45,16 @@ package_vec <- c(
   "ncdf4", # for ncdf namespace when loading nertcdf files
   "fasterize", # for establishing richness maps in a timely manner
   "sf", # for use of SpatialpolygonsDataFrame objects in fasterize
-  "gimms", # for downloading the reference raster for NDVI data
+  # "gimms", # for downloading the reference raster for NDVI data
   "ggplot2", # for plotting various things
   "dplyr", # for data manipulation
   "stringr", # for padding numbers
   "rFIA", # for downloading and using Forest Inventory Analysis (FIA) data
   "rstan", # for access to stan
-  "pheatmap", # for heatmaps of interactions
+  # "pheatmap", # for heatmaps of interactions
   "ape", # for calculating phylogenetic distances
   "qgraph", # for network visualisation
-  "gawdis", # for balanced gower distance
+  # "gawdis", # for balanced gower distance
   "reshape2", # for community matrix generation from abundance list
   "phytools", # for averaging of phylogenies
   "Hmsc", # for HMSC models
@@ -66,8 +64,13 @@ package_vec <- c(
   "corrplot", # for HMSC evaluation
   "writexl",
   "cooccur",
-  "netassoc",
-  "BIEN"
+  "netassoc", 
+  "BIEN",
+  "cowplot",
+  "igraph", # for centrality and modularity
+  "maxnodf", # for nestedness
+  "scales",
+  "gridExtra"
 )
 sapply(package_vec, install.load.package)
 
@@ -117,3 +120,5 @@ hush <- function(code){
 Sort.DF <- function(Data = NULL, Column = NULL){
   Data[order(Data[ , Column] ), ]
 }
+
+range01 <- function(x){(x-min(x))/(max(x)-min(x))}

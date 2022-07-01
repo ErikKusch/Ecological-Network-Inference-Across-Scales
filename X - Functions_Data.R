@@ -110,7 +110,7 @@ FUN.PhyloDist <- function(SpeciesNames = NULL, Boot = 1e3){
 }
 
 # FOREST INVENTORY ANALYSIS DATA =========================================
-FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, Dir.FIA = NULL){
+FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, Dir.FIA = NULL, Shape = NULL, Name = NULL){
   Dir.Raw <- file.path(Dir.FIA, "Raw")
   dir.create(Dir.Raw)
   ### EXISTENCE CHECK
@@ -120,11 +120,11 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
   }
   
   ## BIOME SHAPE PREPARATION
-  FIAMerged_shp <- aggregate(FIA_shp, by = "BIOME") # Merge shapes according to biome type
+  FIAMerged_shp <- aggregate(Shape, by = "BIOME") # Merge shapes according to biome type
   FIAMerged_shp@data$Names <- Full_Biomes[match(FIAMerged_shp@data$BIOME, Abbr_Biomes)] # Assign corresponding full text biome names
   
   ## CALCULATION OF FITNESS AS APPROXIMATED BY BIOMASS
-  if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
+  if(!file.exists(file.path(Dir.FIA, paste0("FIABiomes_df_", Name, ".rds")))){
     # might need to run devtools::install_github('hunter-stanke/rFIA') to circumvent "Error in rbindlist(inTables..." as per https://github.com/hunter-stanke/rFIA/issues/7
     if(sum(Check_vec) != 0){
       FIA_df <- rFIA::getFIA(states = states[Check_vec], dir = Dir.Raw, nCores = nCores) # download FIA state data and save it to the FIA directory
@@ -139,7 +139,20 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
                              treeType = "live",
                              returnSpatial = TRUE
     )
-    FIABiomass_df<- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
+    FIABiomass_df <- FIABiomass_df[which(FIABiomass_df$YEAR >= 1986 & FIABiomass_df$YEAR < 2020), ] # subsetting for year range we can cover with climate data with a five-year buffer on the front
+    
+    ## REDUCTION TO LATEST PLOT EACH
+    Last_df <- aggregate(YEAR ~ pltID, FIABiomass_df, max)
+    Last_df <- Last_df[,2:1]
+    Merge_df <- merge(Last_df, FIABiomass_df)
+    # need to make Merge_df a Spatialpointsdataframe like FIABiomass_df again
+    Merge_df$Lon <- sf::st_coordinates(Merge_df$geometry)[,1]
+    Merge_df$Lat <- sf::st_coordinates(Merge_df$geometry)[,2]
+    Merge_df <- st_as_sf(x = Merge_df,
+                         coords = c("Lon", "Lat"),
+                         crs = st_crs(FIABiomass_df))
+    # now overwrite original FIABiomass_df with sp Merge_df
+    FIABiomass_df <- Merge_df
     
     ## CLIMATE DATA EXTRACTION 
     Layer_seq <- seq.Date(as.Date("1981-01-01"), as.Date("2020-12-31"), by = "month")
@@ -170,9 +183,9 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
       }
     }
     FIABiomass_df <- na.omit(FIABiomass_df) # remove NAs (produced by era5-land not having data for certain plots)
-    saveRDS(FIABiomass_df, file.path(Dir.FIA, "FIABiomes_df.rds"))
+    saveRDS(FIABiomass_df, file.path(Dir.FIA, paste0("FIABiomes_df_", Name, ".rds")))
   }else{
-    FIABiomass_df <- readRDS(file.path(Dir.FIA, "FIABiomes_df.rds"))
+    FIABiomass_df <- readRDS(file.path(Dir.FIA, paste0("FIABiomes_df_", Name, ".rds")))
   }
   
   ## PHYLOGENY 
@@ -190,14 +203,27 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
   
   ## SPLITTING INTO BIOMES
   FIASplit_ls <- split(FIABiomass_df, FIABiomass_df$polyID) # extract for each biome to separate data frame
-  FIASplit_ls <- c(list(FIABiomass_df), FIASplit_ls)
-  names(FIASplit_ls) <- c("ALL", FIAMerged_shp@data$Names) # apply correct names of biomes
-  FIASplit_ls <- FIASplit_ls[-c((length(FIASplit_ls)-1):length(FIASplit_ls))] # remove 98 and 99 biome which is barren and limnic
+  if(Name == "BIOMES"){
+    FIASplit_ls <- c(list(FIABiomass_df), FIASplit_ls)
+    names(FIASplit_ls) <- c("ALL", FIAMerged_shp@data$Names) # apply correct names of biomes
+    FIASplit_ls <- FIASplit_ls[c(1, which(FIAMerged_shp@data$BIOME %nin% c(98, 99))+1)] # remove 98 and 99 biome which is barren and limnic
+  }else{
+    names(FIASplit_ls) <- c(FIAMerged_shp@data$Names) # apply correct names of biomes
+  }
+  
   for(Biome_Iter in 1:length(FIASplit_ls)){
     BiomeName <- names(FIASplit_ls)[Biome_Iter]
     print(BiomeName)
-    if(file.exists(file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))){next()}
+    if(file.exists(file.path(Dir.FIA, paste0("FIABiome", Abbr_Biomes[which(Full_Biomes == names(FIASplit_ls)[Biome_Iter])], ".RData")))){next()}
     FIAIter_df <- FIASplit_ls[[Biome_Iter]]
+    
+    ### LMITING by species rarity ----
+    SpecsPlots_percentage <- table(FIAIter_df$SCIENTIFIC_NAME)/length(unique(FIAIter_df$pltID))
+    SpecsKeep <- which(SpecsPlots_percentage > .1 | 
+                         names(SpecsPlots_percentage) %in% Shared_spec) 
+    SpecsKeep <- names(SpecsKeep)
+    SpecsKeep <- SpecsKeep[SpecsKeep %nin% names(table(FIAIter_df$SCIENTIFIC_NAME))[table(FIAIter_df$SCIENTIFIC_NAME) < 2] ]
+    FIAIter_df <- FIAIter_df[which(FIAIter_df$SCIENTIFIC_NAME %in% SpecsKeep), ]
     
     ### Metadata_df ----
     Metadata_df <- as.data.frame(FIAIter_df[,c("pltID", "YEAR", paste0(rep(ECV_vec, each = 3), c("", "_SD", "_UC")))])[-15]
@@ -230,7 +256,7 @@ FUN.FIA <- function(states = c("DE","MD"), nCores = parallel::detectCores()/2, D
     Phylo_Iter$Dist_Mean <- Phylo_Iter$Dist_Mean[Pos_Safe, Pos_Safe]
     Phylo_Iter$Dist_SD <- Phylo_Iter$Dist_SD[Pos_Safe, Pos_Safe]
     save(BiomeName, Metadata_df, ModelFrames_ls, Phylo_Iter, 
-         file = file.path(Dir.FIA, paste0("FIABiome", Biome_Iter, ".RData")))
+         file = file.path(Dir.FIA, paste0("FIABiome", Abbr_Biomes[which(Full_Biomes == names(FIASplit_ls)[Biome_Iter])], ".RData")))
   }
 }
 
@@ -344,10 +370,11 @@ Load.Results <- function(Dir = NULL){
 # SPECIES READOUT ========================================================
 # identifying the species which are included in the result lists read in via the Load.Results() function
 ReadOut.Species <- function(List = NULL){
+  COC_pos <- which(grepl(pattern = "COCCUR", x = names(List)))
   Species_vec <- unique(
     c(
-      unique(unlist(List)[grep(pattern = "Partner", x = names(unlist(List[["COCCUR"]])))]),
-      unique(unlist(List)[grep(pattern = ".sp", x = names(unlist(List[["COCCUR"]])))])
+      unique(unlist(List)[grep(pattern = "Partner", x = names(unlist(List[COC_pos])))]),
+      unique(unlist(List)[grep(pattern = ".sp", x = names(unlist(List[COC_pos])))])
     )
   )
   return(Species_vec) 
@@ -358,12 +385,12 @@ ReadOut.Species <- function(List = NULL){
 Flatten.Lists <- function(List_ls = NULL){
   Flat_ls <- unlist(List_ls, recursive = FALSE)
   HMSC_pos <- grep(names(Flat_ls), pattern = "HMSC")
-  NETASSOC_pos <- grep(names(Flat_ls), pattern = "NETASSOC")
+  # NETASSOC_pos <- grep(names(Flat_ls), pattern = "NETASSOC")
   HMSC_ls <- unlist(Flat_ls[HMSC_pos], recursive = FALSE)
-  Flat_ls[NETASSOC_pos] <- lapply(Flat_ls[NETASSOC_pos], FUN = function(x){data.frame(Partner1 = rep(colnames(x), length.out = length(x)),
-                                                                                      Partner2 = rep(rownames(x), each = nrow(x)),
-                                                                                      Effects = as.numeric(x))}
-  )
+  # Flat_ls[NETASSOC_pos] <- lapply(Flat_ls[NETASSOC_pos], FUN = function(x){data.frame(Partner1 = rep(colnames(x), length.out = length(x)),
+  #                                                                                     Partner2 = rep(rownames(x), each = nrow(x)),
+  #                                                                                     Effects = as.numeric(x))}
+  # )
   Flat_ls <- c(Flat_ls[which(1:length(Flat_ls) %nin% HMSC_pos)], HMSC_ls)
 }
 
@@ -373,6 +400,9 @@ Limit.Lists <- function(List_ls, Shared_spec){
   ## Merge Results with data frame of possible interaction specifications
   Interacs_df <- as.data.frame(expand.grid(Shared_spec, Shared_spec))
   colnames(Interacs_df) <- c("Partner1", "Partner2")
+  if(length(-which(unlist(lapply(List_ls, is.character)))) > 0){
+    List_ls <- List_ls[-which(unlist(lapply(List_ls, is.character)))]
+  }
   merged_ls <- lapply(List_ls,
                       function(x){
                         colnames(x)[1:2] <- c("Partner1", "Partner2")
@@ -388,28 +418,31 @@ Limit.Lists <- function(List_ls, Shared_spec){
   for(Cutoff_Iter in Cutoff_pos){
     if(length(grep(names(merged_ls)[Cutoff_Iter], pattern = "HMSC")) == 1){ # HMSC cutoffs for significance
       ## only retain interactions for which a 90% probability has been identified
-      merged_ls[[Cutoff_Iter]]$Inter_mean[
-        merged_ls[[Cutoff_Iter]]$Inter_ProbPos < 0.9 & 
-          merged_ls[[Cutoff_Iter]]$Inter_ProbNeg < 0.9] <- NA
+      merged_ls[[Cutoff_Iter]]$Sig <- FALSE
+      merged_ls[[Cutoff_Iter]]$Sig[
+        merged_ls[[Cutoff_Iter]]$Inter_ProbPos >= 0.9 | 
+          merged_ls[[Cutoff_Iter]]$Inter_ProbNeg >= 0.9] <- TRUE
     }else{ #IF-REM cutoffs for significance
       # 90% intervals from return_inter_array() function
-      merged_ls[[Cutoff_Iter]]$Inter_mean[abs(rowSums(sign(merged_ls[[Cutoff_Iter]][, 3:5]))) != 3] <- NA
+      merged_ls[[Cutoff_Iter]]$Sig <- FALSE
+      merged_ls[[Cutoff_Iter]]$Sig[which(abs(rowSums(sign(merged_ls[[Cutoff_Iter]][, 3:5]))) == 3)] <- TRUE
     }
+    colnames(merged_ls[[Cutoff_Iter]])[3] <- "effects"
   }
-  NETASSOC_pos <- grep(names(merged_ls), pattern = "NETASSOC")
-  merged_ls[NETASSOC_pos] <- lapply(merged_ls[NETASSOC_pos], FUN = function(x){
-    x$Effects[duplicated(round(x$Effects, 5), incomparables = NA)] <- NA
-    return(x)
-  }
-  )
+  # NETASSOC_pos <- grep(names(merged_ls), pattern = "NETASSOC")
+  # merged_ls[NETASSOC_pos] <- lapply(merged_ls[NETASSOC_pos], FUN = function(x){
+  #   x$Effects[duplicated(round(x$Effects, 5), incomparables = NA)] <- NA
+  #   return(x)
+  # }
+  # )
   return(merged_ls)
 }
 
 # EFFECT DATA FRAME ======================================================
 ## extracting only the estimates of associations/interactions from limited lists obtained with Limit.Lists()
 Eff.Data.Frame <- function(List_ls = NULL){
-  List_df <- do.call("cbind", lapply(List_ls, `[`, 3))
-  colnames(List_df) <- names(List_ls)
+  List_df <- do.call("cbind", lapply(List_ls, `[`, c("effects", "Sig")))
+  # colnames(List_df) <- names(List_ls)
   List_df <- cbind(List_ls[[1]][ , 1:2], List_df)
   IF_REMs <- grep(pattern = "IF_REM", x = colnames(List_df))
   if(length(IF_REMs) > 0){
@@ -432,11 +465,13 @@ Eff.Data.Frame <- function(List_ls = NULL){
 BiomeNames.List<- function(List_ls = NULL){
   Biomes_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 2))
   Methods_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 1))
+  HMSC_vec <- unlist(lapply(strsplit(names(List_ls), split = "[.]"), `[`, 3))
   Biomes_vec <- sapply(Biomes_vec, FUN = function(x){
     load(file.path(Dir.FIA, paste0("FIABiome",x,".RData")))
     return(BiomeName)
   })
-  names(List_ls) <- paste(Methods_vec, Biomes_vec, sep = ".")
+  names(List_ls) <- paste(Methods_vec, Biomes_vec, HMSC_vec, sep = ".")
+  names(List_ls) <- gsub(names(List_ls), pattern = ".NA", replacement = "")
   return(List_ls)
 }
 

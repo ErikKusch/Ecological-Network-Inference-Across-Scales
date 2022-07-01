@@ -3,6 +3,7 @@
 #' CONTENTS: Reference raster and Shapefiles
 #'  DEPENDENCIES:
 #'  - 0 - Preamble.R must be run prior
+#'  - shapefile obtained from https://databasin.org/datasets/7ae51cf6-aac8-4636-b1db-eb206ed012d0/ and placed in Shapes folder
 #' AUTHOR: [Erik Kusch]
 #' ####################################################################### #
 
@@ -19,6 +20,13 @@ if(!file.exists(file.path(Dir.Shapes, "CountryMask.zip"))){ # if land mask has n
   unzip(paste(Dir.Shapes, "CountryMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
 }
 CountryMask <- readOGR(Dir.Shapes, "ne_10m_admin_0_countries", verbose = FALSE) # read land mask in
+
+#### STATE MASK (for producing maps with state borders) -----------------------------------------------------------
+if(!file.exists(file.path(Dir.Shapes, "StateMask.zip"))){ # if land mask has not been downloaded yet
+  download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/110m/cultural/ne_110m_admin_1_states_provinces.zip", destfile = paste(Dir.Shapes, "StateMask.zip", sep="/")) # download cultural vector
+  unzip(paste(Dir.Shapes, "StateMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
+}
+StateMask <- readOGR(Dir.Shapes, "ne_110m_admin_1_states_provinces", verbose = FALSE) # read land mask in
 
 #### ECOREGIONS -----------------------------------------------------------
 if(!file.exists(file.path(Dir.Shapes, "WWF_ecoregions"))){
@@ -50,11 +58,34 @@ Full_Biomes <- c("Tropical & Subtropical Moist Broadleaf Forests",
 #### FIA REGIONS -----------------------------------------------------------
 if(!file.exists(file.path(Dir.Shapes, "FIAMask.rds"))){
   US_shp <- CountryMask[which(CountryMask$NAME == "United States of America"),]
+  
+  ##BIOMES
   FIA_shp <- crop(EcoregionsMask, US_shp) # cropping to
+  FIA_shp <- FIA_shp[ , "BIOME"]
+  # Full_Biomes[match(FIA_shp$BIOME, Abbr_Biomes)]
+  
+  ##STATES
+  StatesFIA_shp <- StateMask[StateMask$name == "Vermont" | StateMask$name == "Maine", ]
+  StatesFIA_shp$BIOME = c(1000, 1001)
+  StatesFIA_shp <- StatesFIA_shp[ , ncol(StatesFIA_shp)]
+  
+  ## YOSEMITE
+  # sourced from https://databasin.org/datasets/7ae51cf6-aac8-4636-b1db-eb206ed012d0/
+  YoseMask <- readOGR(file.path(Dir.Shapes, "yose_ep_bnd_Project.shp"), verbose = FALSE)
+  YoseMask$BIOME = 1003
+  YoseMask <- YoseMask[ , ncol(YoseMask)]
+  YoseMask <- spTransform(YoseMask, crs(FIA_shp))
+  States_shp <- rbind(StatesFIA_shp, YoseMask)
   saveRDS(FIA_shp, file.path(Dir.Shapes, "FIAMask.rds"))
+  saveRDS(States_shp, file.path(Dir.Shapes, "StatesMask.rds"))
 }else{
   FIA_shp <- readRDS(file.path(Dir.Shapes, "FIAMask.rds"))
-}
+  States_shp <- readRDS(file.path(Dir.Shapes, "StatesMask.rds"))
+  }
+
+## Housekeeping
+Abbr_Biomes <- c(Abbr_Biomes, 1000, 1001, 1003)
+Full_Biomes <- c(Full_Biomes, "Vermont", "Maine", "Yosemite")
 
 #### ERA5-LAND MASK --------------------------------------------------------
 if(!file.exists(file.path(Dir.Shapes, "LandMask.nc"))) { # if not downloaded yet

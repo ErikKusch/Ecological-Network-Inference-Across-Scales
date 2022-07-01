@@ -8,12 +8,13 @@
 #' ####################################################################### #
 
 # HMSC =====================================================================
-HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSamples = nSamples, nChains = nChains){
+HMSC.Eval <- function(hmsc_model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSamples = nSamples, nChains = nChains){
   ma <- NULL
   na <- NULL
   ### MCMC convergence ----
-  mpost <- convertToCodaObject(Model, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
+  mpost <- convertToCodaObject(hmsc_model, spNamesNumbers = c(T,F), covNamesNumbers = c(T,F))
   psrf.beta <- gelman.diag(mpost$Beta,multivariate=FALSE)$psrf # "if these are smaller than 1.05, we are quite happy"
+  rm(mpost)
   tmp <- summary(psrf.beta)
   if(is.null(ma)){
     ma=psrf.beta[,1]
@@ -26,20 +27,23 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
       na = c(na,"")
     }
   }
+  rm(psrf.beta)
   jpeg(file=file.path(Dir, paste0(Name, "_MCMC_convergence.jpeg")), width = 32, height = 32, units = "cm", res = 100)
   par(mfrow=c(2,1))
   vioplot(ma,col=rainbow_hcl(1),names=na,ylim=c(0,max(ma)),main="psrf(beta)")
   vioplot(ma,col=rainbow_hcl(1),names=na,ylim=c(0.9,1.1),main="psrf(beta)")
   dev.off()
+  rm(ma)
   
   ### Model Fit ----
-  m <- Model
-  preds <- tryCatch(computePredictedValues(m)) # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
-  MF <- evaluateModelFit(hM=m, predY=preds)
-  # partition <- createPartition(m, nfolds = 2)
-  # preds2 <- computePredictedValues(m,partition=partition, nParallel = nChains)  # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
-  # MFCV <- evaluateModelFit(hM=m, predY=preds2)
-  # WAIC <- computeWAIC(m)
+  preds <- tryCatch(computePredictedValues(hmsc_model)) # cannot compute due to RAM limitations
+  MF <- evaluateModelFit(hM=hmsc_model, predY=preds)
+  rm(preds)
+  gc()
+  # partition <- createPartition(hmsc_model, nfolds = 2)
+  # preds2 <- computePredictedValues(hmsc_model,partition=partition, nParallel = nChains)  # this produces "first error: the leading minor of order 2 is not positive definite" in some instances, which has been linked to Inf values on the github issues page for HMSC, but aren't present in my models
+  # MFCV <- evaluateModelFit(hM=hmsc_model, predY=preds2)
+  # WAIC <- computeWAIC(hmsc_model)
   # filename_out <- file.path(Dir, paste0(Name, "_MF_thin_", as.character(thin),
   #                                       "_samples_", as.character(nSamples),
   #                                       "_chains_",as.character(nChains),
@@ -77,11 +81,13 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
   
   ### PARAMETER ESTIMATES ----
   pdf(file = file.path(Dir, paste0(Name, "_parameter_estimates.pdf")))
-  VP <- computeVariancePartitioning(Model)
+  VP <- computeVariancePartitioning(hmsc_model)
   vals <- VP$vals
   mycols <- rainbow(nrow(VP$vals))
-  plotVariancePartitioning(hM=Model, VP=VP,cols = mycols, args.leg=list(bg="white",cex=0.7),
+  plotVariancePartitioning(hM=hmsc_model, VP=VP,cols = mycols, args.leg=list(bg="white",cex=0.7),
                            main = paste0("Proportion of explained variance, ",Name),cex.main=0.8)
+  
+  write.csv(vals,file=file.path(Dir, paste0(Name, "_parameter_estimates_VP.csv")))
   R2 <- NULL
   if(!is.null(MF$TjurR2)){
     TjurR2 <- MF$TjurR2
@@ -92,61 +98,62 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
     R2 <- MF$R2
     vals <- rbind(vals,R2)
   }
-  write.csv(vals,file=file.path(Dir, paste0(Name, "_parameter_estimates_VP.csv")))
+  rm(MF)
   if(!is.null(R2)){
     VPr <- VP
-    for(k in 1:m$ns){
+    for(k in 1:hmsc_model$ns){
       VPr$vals[,k] <- R2[k]*VPr$vals[,k]
     }
     VPr$vals <- VPr$vals[,order(-R2)]
-    plotVariancePartitioning(hM=Model, VP=VPr,cols = mycols, args.leg=list(bg="white",cex=0.7),ylim=c(0,1),
+    plotVariancePartitioning(hM=hmsc_model, VP=VPr,cols = mycols, args.leg=list(bg="white",cex=0.7),ylim=c(0,1),
                              main=paste0("Proportion of raw variance, ",Name),cex.main=0.8)
   }
-  postBeta = getPostEstimate(Model, parName="Beta")
-  show.sp.names = (is.null(Model$phyloTree) && Model$ns<=20) 
-  plotBeta(Model, post=postBeta, supportLevel = 0.95,param="Sign",
-           plotTree = !is.null(Model$phyloTree),
+  rm(VP)
+  postBeta = getPostEstimate(hmsc_model, parName="Beta")
+  show.sp.names = (is.null(hmsc_model$phyloTree) && hmsc_model$ns<=20) 
+  plotBeta(hmsc_model, post=postBeta, supportLevel = 0.95,param="Sign",
+           plotTree = !is.null(hmsc_model$phyloTree),
            covNamesNumbers = c(TRUE,FALSE),
            spNamesNumbers=c(show.sp.names,FALSE),
            cex=c(0.6,0.6,0.8))
   mymain = paste0("BetaPlot, ",Name)
-  if(!is.null(Model$phyloTree)){
-    mpost = convertToCodaObject(Model)
+  if(!is.null(hmsc_model$phyloTree)){
+    mpost = convertToCodaObject(hmsc_model)
     rhovals = unlist(poolMcmcChains(mpost$Rho))
     mymain = paste0(mymain,", E[rho] = ",round(mean(rhovals),2),", Pr[rho>0] = ",round(mean(rhovals>0),2))
   }
   title(main=mymain, line=2.5, cex.main=0.8)
   me = as.data.frame(t(postBeta$mean))
-  me = cbind(Model$spNames,me)
-  colnames(me) = c("Species",Model$covNames)
+  me = cbind(hmsc_model$spNames,me)
+  colnames(me) = c("Species",hmsc_model$covNames)
   po = as.data.frame(t(postBeta$support))
-  po = cbind(Model$spNames,po)
-  colnames(po) = c("Species",Model$covNames)
+  po = cbind(hmsc_model$spNames,po)
+  colnames(po) = c("Species",hmsc_model$covNames)
   ne = as.data.frame(t(postBeta$supportNeg))
-  ne = cbind(Model$spNames,ne)
-  colnames(ne) = c("Species",Model$covNames)
+  ne = cbind(hmsc_model$spNames,ne)
+  colnames(ne) = c("Species",hmsc_model$covNames)
   vals = list("Posterior mean"=me,"Pr(x>0)"=po,"Pr(x<0)"=ne)
   writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Beta.xlsx")))
-  if(Model$nt>1){
-    postGamma = getPostEstimate(Model, parName="Gamma")
-    plotGamma(Model, post=postGamma, supportLevel = 0.9, param="Sign",
+  if(hmsc_model$nt>1){
+    postGamma = getPostEstimate(hmsc_model, parName="Gamma")
+    plotGamma(hmsc_model, post=postGamma, supportLevel = 0.9, param="Sign",
               covNamesNumbers = c(TRUE,FALSE),
-              trNamesNumbers=c(m$nt<21,FALSE),
+              trNamesNumbers=c(hmsc_model$nt<21,FALSE),
               cex=c(0.6,0.6,0.8))
     title(main=paste0("GammaPlot ",Name), line=2.5,cex.main=0.8)
   }
-  OmegaCor = computeAssociations(Model)
+  OmegaCor = computeAssociations(hmsc_model)
   supportLevel = 0.95
-  for (r in 1:Model$nr){
+  for (r in 1:hmsc_model$nr){
     plotOrder = corrMatOrder(OmegaCor[[r]]$mean,order="AOE")
     toPlot = ((OmegaCor[[r]]$support>supportLevel) + (OmegaCor[[r]]$support<(1-supportLevel))>0)*sign(OmegaCor[[r]]$mean)
-    if(Model$ns>20){
-      colnames(toPlot)=rep("",Model$ns)
-      rownames(toPlot)=rep("",Model$ns)
+    if(hmsc_model$ns>20){
+      colnames(toPlot)=rep("",hmsc_model$ns)
+      rownames(toPlot)=rep("",hmsc_model$ns)
     }
-    mymain = paste0("Associations, ",Name, ": ",names(Model$ranLevels)[[r]])
-    if(Model$ranLevels[[r]]$sDim>0){
-      mpost = convertToCodaObject(Model)
+    mymain = paste0("Associations, ",Name, ": ",names(hmsc_model$ranLevels)[[r]])
+    if(hmsc_model$ranLevels[[r]]$sDim>0){
+      mpost = convertToCodaObject(hmsc_model)
       alphavals = unlist(poolMcmcChains(mpost$Alpha[[1]][,1]))
       mymain = paste0(mymain,", E[alpha1] = ",round(mean(alphavals),2),", Pr[alpha1>0] = ",round(mean(alphavals>0),2))
     }
@@ -156,16 +163,16 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
              main=mymain,cex.main=0.8)
     
     me = as.data.frame(OmegaCor[[r]]$mean)
-    me = cbind(Model$spNames,me)
+    me = cbind(hmsc_model$spNames,me)
     colnames(me)[1] = ""
     po = as.data.frame(OmegaCor[[r]]$support)
-    po = cbind(Model$spNames,po)
+    po = cbind(hmsc_model$spNames,po)
     colnames(po)[1] = ""
     ne = as.data.frame(1-OmegaCor[[r]]$support)
-    ne = cbind(Model$spNames,ne)
+    ne = cbind(hmsc_model$spNames,ne)
     colnames(ne)[1] = ""
     vals = list("Posterior mean"=me,"Pr(x>0)"=po,"Pr(x<0)"=ne)
-    writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Omega_",names(Model$ranLevels)[[r]],".xlsx")))
+    writexl::write_xlsx(vals,path = file.path(Dir, paste0(Name, "_parameter_estimates_Omega_",names(hmsc_model$ranLevels)[[r]],".xlsx")))
   }
   dev.off()
   return(vals)
@@ -174,7 +181,7 @@ HMSC.Eval <- function(Model = NULL, Name = NULL, Dir = getwd(), thin = thin, nSa
 # IF-REM ===================================================================
 ## PREPARING DATA ----------------------------------------------------------
 # works on a data frame where the first four columns are plotID, fitness proxy (identified with Fitness argument), focal (species membership), focalID (speciesID and plotID)
-FUN.StanList <- function(Fitness = "value", data = NULL){
+FUN.StanList <- function(Fitness = "value", data = NULL, NonNCol = 3){
   ## Basic List and Data Cleaning ----
   stan.data <- list() # set up the data in list format as preferred by STAN
   data[ , -c(1:3)] <- sapply(data[ , -c(1:3)], as.numeric) # ensure that neighbourhood protion of the data frame is numeric, first three columns are SiteID, taxon, and fitness proxy
@@ -185,35 +192,55 @@ FUN.StanList <- function(Fitness = "value", data = NULL){
   Counts[Counts > 0] <- 1 # set all counts/abundances which indicate presence to 1
   Counts <- split(Counts, data$taxon) # split into groups by species
   obs <- do.call(rbind, lapply(Counts, colSums))
+
+  ## Inferable Interactions ---
+  # df is the dataframe, the 'focal' column gives you the focal species name for each observation,
+  # and nonNcols (3) is a variable which tells you how many columns in df are NOT neighbour abundances
+  Q <- t(sapply(levels(as.factor(data$taxon)), function(f){
+    # inferrable interactions are identified for each focal species independently
+      N_i <- as.matrix(data[data$taxon == f, -c(1:3)]) # I just need the matrix of neighbour
+      # abundances for all observations for that one taxon
+      X_i <- cbind(1,N_i)
+      R_i <- pracma::rref(X_i)
+      Z_i <- t(R_i) %*% R_i
+      # param k is inferrable if its corresponding row/column is all 0 except for the k'th element
+      # ignore intercept because we always want to include it (beta_i0)
+      sapply(seq(2, dim(Z_i)[1], 1), function(k){
+        ifelse(Z_i[k, k] == 1 & sum(Z_i[k, -k]) == 0, 1, 0)
+      })
+  }))
+  stan.data <- list() # storing data in the format preffered by stan
+  stan.data$Q <- Q # Q is a matrix of taxon x neighbours, if Q[i, j] = 1 then the interaction between i and # j is inferrable
   
   ## Integers ----
   stan.data$S <- length(unique(data$taxon))  # number of species
   stan.data$N <- nrow(data)                  # number of observations
   stan.data$K <- ncol(data[ , -c(1:3)])      # number of neighbours
-  stan.data$I <- length(obs[obs > 0])        # number of observed interactions
+  stan.data$I <- sum(Q)                      # # number of interactions which can be inferred by a single parameter
   stan.data$Z <- stan.data$S*stan.data$K   # total number of possible interactions
   
   ## Vectors ----
-  stan.data$species_ID <- as.numeric(as.factor(data$taxon)) # numeric indices for focal species
+  stan.data$species_ID <- as.numeric(as.factor(data$taxon)) # numeric indices for taxon species
   stan.data$fitness <- data[, Fitness] # fitness proxy
   
   ## Indices for Interactions in Alpha-Matrix ----
-  stan.data$inter_per_species <- obs # first count the number of interactions observed for each focal species
-  stan.data$inter_per_species[stan.data$inter_per_species > 0] <- 1 # set all interactions to one
-  stan.data$inter_per_species <- rowSums(stan.data$inter_per_species)
-  stan.data$inter_per_species_perneighbour <- obs
-  stan.data$icol <- unlist(apply(ifelse(obs > 0, T, F), 1, which)) # column index in the alpha matrix for each observed interaction
+  stan.data$inter_per_species <- rowSums(Q)
+  # column index in the interactions matrix for each inferrable interaction
+  stan.data$icol <- unlist(apply(ifelse(Q > 0, T, F), 1, which))
   names(stan.data$icol) <- NULL
   stan.data$icol <- as.vector(stan.data$icol)
-  stan.data$irow <- rep(1, stan.data$inter_per_species[[1]]) # begin the row index
-  stan.data$istart <- 1 # begin the start and end indices for the vector of interactions per species
-  stan.data$iend <- stan.data$inter_per_species[[1]] # begin the start and end indices for the vector of interactions per species
-  for(s in 2:stan.data$S){ # populate indices for all the other species
-    # starting position of a_ij's for i in the vector of observed interactions (ie the 1st 'j')
+  # begin the row index
+  stan.data$irow <- rep(1, stan.data$inter_per_species[[1]])
+  # begin the start and end indices for the vector of realised interactions per species
+  stan.data$istart <- 1
+  stan.data$iend <- stan.data$inter_per_species[[1]] #???
+  # populate indices for all the other species
+  for(s in 2:stan.data$S) {
+    # starting position of beta_ij's for i in the vector of observed interactions (ie the 1st 'j')
     stan.data$istart[s] <- sum(stan.data$inter_per_species[s-1:s])+1
-    # end position of a_ij's for i in the vector of observed interactions (the last 'j')
-    stan.data$iend[s] <-  sum(stan.data$inter_per_species[1:s])
-    # row index in the alpha matrix for each observed interaction
+    # end position of beta_ij's for i in the vector of observed interactions (the last 'j')
+    stan.data$iend[s] <- sum(stan.data$inter_per_species[1:s])
+    # row index in the interaction matrix for each observed interaction
     stan.data$irow <- c(stan.data$irow, rep(s, stan.data$inter_per_species[[s]]))
   }
   
@@ -232,68 +259,68 @@ FUN.DataDims <- function(data = NULL){
   message(paste0('Number of observations = ', data$N))
   message(paste0('Number of focal species = ', data$S))
   message(paste0('Number of neighbouring species = ', data$K))
-  message(paste0('Number of observed interactions = ', data$I))
+  message(paste0('Number of inferable/realised interactions = ', data$I))
 }
 
 ## MODEL SPECIFICATION -----------------------------------------------------
-# model specified in 'joint_model.stan'
+# model specified in 'joint_model_updated.stan'
 
-## MODEL EVALUATION --------------------------------------------------------
-# This function takes the posterior draws for interaction estimates extracted from 
-# the STAN model fit object and returns a focal x neighbour x sample array of all 
-# interactions, both observed (IFM) and unrealised (RIM)
-return_inter_array <- function(joint.post.draws, # posterior draws extracted using the extract.samples() function
-                               response = p.samples$response, # samples for the response parameters
-                               effect = p.samples$effect,     # samples for the effect parameters
-                               focalID,   # vector of focal identities (names)
-                               neighbourID,  # vector of neighbour identities (names)
-                               ...){
-  
-  
-  # extract the IFM interaction estimates - though observed interactions are already sampled from 
-  # the 'beta_ij' parameters, sampling from inter_mat has the benefit of including columns of 0's for 
-  # unrealised interactions (which can then be filled with the corresponding RIM estimates)
-  ifm_inters <- joint.post.draws$inter_mat
-  ifm_inters <- as.data.frame(aperm(ifm_inters, perm = c(1, 3, 2)))
-  # there is now one column per interaction - unrealised interactions will simply be a column of 0's
-  # sample from the 80% posterior interval for each interaction
-  ifm_inters <- apply(ifm_inters, 2, function(x) {
-    inter <- x[x > quantile(x, 0.1) & x < quantile(x, 0.9)]
-    if (length(inter > 0)) {sample(inter, size = dim(response)[1])} 
-    else {rep(0, 1000)} # this is for those unobserved interactions (0)
-  })
-  ifm_inters <- do.call(cbind, ifm_inters) # this returns IF model estimates for every possible interaction 
-  # every column is an interaction
-  
-  # calculate unrealised interactions 
-  rim_inters <- lapply(c(1:length(focalID)), function(x) {
-    # randomly re-order samples from the response parameter for each focal 
-    r <- sample(response[ , x], dim(response)[1]) 
-    # multiply focal's response by all neighbour effect parameters 
-    return(r*effect)})
-  rim_inters <- do.call(cbind, rim_inters) # this returns RI model estimates for every possible interaction 
-  # every column is an interaction
-  
-  # replace unobserved interactions (columns of 0 in ifm_inters) with the values predicted by the RIM
-  all_inters <- ifm_inters
-  all_inters[ , apply(all_inters, 2, function(x) {all(x == 0)})] <- 
-    rim_inters[ , apply(all_inters, 2, function(x) {all(x == 0)})]
-  length(colSums(all_inters)[colSums(all_inters) == 0]) # this should be equal to 0 
-  
-  # reconstruct species x neighbour x sample interaction arrays  
-  inter_mat <- array(data = unlist(all_inters), 
-                     dim = c(nrow(all_inters), length(neighbourID), length(focalID)), 
-                     dimnames = list('samples' = seq(1, nrow(all_inters)), 
-                                     'neighbour' = neighbourID, 
-                                     'species' = focalID))
-  inter_mat <- aperm(inter_mat, c(3,2,1))
-  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior
-  # inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
-  # apply(inter_mat, c(1, 2), mean) will return the mean estimate for every interaction (NB: this is the 
-  # mean of the 80% posterior interval, so will be slightly different to the mean value returned from 
-  # summary(fit), which is calculated from the full posterior distribution) 
-  
-}
+# ## MODEL EVALUATION --------------------------------------------------------
+# # This function takes the posterior draws for interaction estimates extracted from 
+# # the STAN model fit object and returns a focal x neighbour x sample array of all 
+# # interactions, both observed (IFM) and unrealised (RIM)
+# return_inter_array <- function(joint.post.draws, # posterior draws extracted using the extract.samples() function
+#                                response = p.samples$response, # samples for the response parameters
+#                                effect = p.samples$effect,     # samples for the effect parameters
+#                                focalID,   # vector of focal identities (names)
+#                                neighbourID,  # vector of neighbour identities (names)
+#                                ...){
+#   
+#   
+#   # extract the IFM interaction estimates - though observed interactions are already sampled from 
+#   # the 'beta_ij' parameters, sampling from inter_mat has the benefit of including columns of 0's for 
+#   # unrealised interactions (which can then be filled with the corresponding RIM estimates)
+#   ifm_inters <- joint.post.draws$ri_betaij
+#   ifm_inters <- as.data.frame(aperm(ifm_inters, perm = c(1, 3, 2)))
+#   # there is now one column per interaction - unrealised interactions will simply be a column of 0's
+#   # sample from the 80% posterior interval for each interaction
+#   ifm_inters <- apply(ifm_inters, 2, function(x) {
+#     inter <- x[x > quantile(x, 0.1) & x < quantile(x, 0.9)]
+#     if (length(inter > 0)) {sample(inter, size = dim(response)[1])} 
+#     else {rep(0, 1000)} # this is for those unobserved interactions (0)
+#   })
+#   # ifm_inters <- do.call(cbind, ifm_inters) # this returns IF model estimates for every possible interaction 
+#   # every column is an interaction
+#   
+#   # calculate unrealised interactions 
+#   rim_inters <- lapply(c(1:length(focalID)), function(x) {
+#     # randomly re-order samples from the response parameter for each focal 
+#     r <- sample(response[ , x], dim(response)[1]) 
+#     # multiply focal's response by all neighbour effect parameters 
+#     return(r*effect)})
+#   rim_inters <- do.call(cbind, rim_inters) # this returns RI model estimates for every possible interaction 
+#   # every column is an interaction
+#   
+#   # replace unobserved interactions (columns of 0 in ifm_inters) with the values predicted by the RIM
+#   all_inters <- ifm_inters
+#   all_inters[ , apply(all_inters, 2, function(x) {all(x == 0)})] <- 
+#     rim_inters[ , apply(all_inters, 2, function(x) {all(x == 0)})]
+#   length(colSums(all_inters)[colSums(all_inters) == 0]) # this should be equal to 0 
+#   
+#   # reconstruct species x neighbour x sample interaction arrays  
+#   inter_mat <- array(data = unlist(all_inters), 
+#                      dim = c(nrow(all_inters), length(neighbourID), length(focalID)), 
+#                      dimnames = list('samples' = seq(1, nrow(all_inters)), 
+#                                      'neighbour' = neighbourID, 
+#                                      'species' = focalID))
+#   inter_mat <- aperm(inter_mat, c(3,2,1))
+#   # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior
+#   # inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
+#   # apply(inter_mat, c(1, 2), mean) will return the mean estimate for every interaction (NB: this is the 
+#   # mean of the 80% posterior interval, so will be slightly different to the mean value returned from 
+#   # summary(fit), which is calculated from the full posterior distribution) 
+#   
+# }
 
 # This functions spits out diagnostics for convergence
 stan_diagnostic <- function(fit, 

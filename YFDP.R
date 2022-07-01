@@ -77,6 +77,10 @@ for(Treatment_Iter in 1:length(Treatments_ls$Name)){
   message(paste("Preparing data for", Treatments_ls$Name[Treatment_Iter], "treatment"))
   Raw_df <- read.csv(file.path(Dir.YFDP, Treatments_ls$File[Treatment_Iter]))
   Raw_df <- Raw_df[Raw_df$SPECIES != "UNKN", ]
+  Raw_df <- Raw_df[Raw_df$DBH > 1, ]
+  if(Treatment_Iter == 2){ # remove DBHs that have been altered by fire in post-fire data
+    Raw_df <- Raw_df[Raw_df$BURN_AT_DBH != 3, ]
+  }
   YFDP_df <- data.frame(SiteID = Raw_df$QUADRAT,
                         taxon = Raw_df$SPECIES,
                         value = Raw_df$DBH,
@@ -313,7 +317,7 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
 
     ### Model Evaluation ----
     message("Evaluation")
-    vals <- HMSC.Eval(Model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
+    vals <- HMSC.Eval(hmsc_model = hmsc_model, Dir = Dir.TreatmentIter, Name = hmsc_modelname, thin = thin, nSamples = nSamples, nChains = nChains)
     ### Interaction/Association Matrix ----
     Interaction_mean <- vals$`Posterior mean`[,-1]
     Interaction_ProbPos <- vals$`Pr(x>0)`[,-1]
@@ -340,6 +344,10 @@ if(!dir.exists(Dir.IFREM)){dir.create(Dir.IFREM)}
 
 for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   message(paste("### Treatment:", Treatment_Iter))
+  if(file.exists(file.path(Dir.TreatmentIter, "Interac.RData"))){
+    message("Model already compiled and evaluated")
+    next()
+  }
   Dir.TreatmentIter <- file.path(Dir.IFREM, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
   if(file.exists(file.path(Dir.TreatmentIter, "Interac.RData"))){
@@ -370,8 +378,8 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
     message("Model already compiled")
     load(file.path(Dir.TreatmentIter, "Model.RData"))
   }else{
-    unlink("joint_model.rds")
-    Stan_model <- stan(file = 'joint_model.stan',
+    unlink("joint_model_updated.rds")
+    Stan_model <- stan(file = 'joint_model_updated.stan',
                        data =  StanList_Iter,
                        chains = 1,
                        warmup = nWarmup*nChains/2,
@@ -383,29 +391,28 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   }
   
   ### Model Diagnostics ----
-  # Get the full posteriors 
+  # Get the full posteriors
   joint.post.draws <- extract.samples(Stan_model)
   # Select parameters of interest
-  param.vec <- c('beta_i0', 'beta_ij', 'effect', 'response', 're', 'inter_mat', 'mu')
+  param.vec <- Stan_model@model_pars[Stan_model@model_pars %nin% c('response1', 'responseSm1', 'lp__')]
   # Draw 1000 samples from the 80% posterior interval for each parameter of interest
   p.samples <- list()
-  p.samples <- sapply(param.vec[param.vec != 'inter_mat'], function(p) {
+  p.samples <- sapply(param.vec[param.vec %nin% c('ri_betaij', 'ndd_betaij')], function(p) {
     p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = nSamples)
+      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = 100)
     })  # this only works for parameters which are vectors
   })
   # there is only one sigma_alph parameter so we must sample differently:
-  p.samples[['sigma_alph']] <- sample(joint.post.draws$sigma[
-    joint.post.draws$sigma > quantile(joint.post.draws$sigma, 0.1) & 
-      joint.post.draws$sigma < quantile(joint.post.draws$sigma, 0.9)], size = nSamples)
-  # WARNING: in the STAN model, parameter 'a' lies within a logarithmic, and must thus be logarithmitised to return estimates of intrinsic performance
-  intrinsic.perf <- log(p.samples$beta_i0)
-  colnames(intrinsic.perf) <- levels(factor(Index_Iter$taxon))
-  inter_mat <- return_inter_array(joint.post.draws = joint.post.draws, 
-                                  response = p.samples$response,
-                                  effect = p.samples$effect,
-                                  focalID = levels(factor(Index_Iter$taxon)),
-                                  neighbourID = colnames(Index_Iter[, -1:-3]))
+  intrinsic.perf <- p.samples$beta_i0
+  colnames(intrinsic.perf) <- levels(factor(Index_df$taxon))
+  # inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
+  #                                 response = p.samples$response,
+  #                                 effect = p.samples$effect,
+  #                                 focalID = levels(factor(Index_Iter$taxon)),
+  #                                 neighbourID = colnames(Index_Iter[, -1:-3]))
+  inter_mat <- aperm(joint.post.draws$ndd_betaij, c(2, 3, 1))
+  rownames(inter_mat) <- levels(factor(Index_df$taxon))
+  colnames(inter_mat) <- levels(factor(Index_df$taxon))
   # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
   try(stan_model_check(fit = Stan_model,
                        results_folder = Dir.TreatmentIter,
@@ -420,8 +427,8 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   diag(Interaction_min) <- NA
   Interaction_max <- -Interaction_hpdi[2,,]
   diag(Interaction_max) <- NA
-  Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)$neighbour, length(dimnames(Interaction_mean)$species)),
-                                    Subject = rep(dimnames(Interaction_mean)$species, each = length(dimnames(Interaction_mean)$neighbour)),
+  Interactions_igraph <- data.frame(Actor = rep(dimnames(Interaction_mean)[[2]], length(dimnames(Interaction_mean)[[1]])),
+                                    Subject = rep(dimnames(Interaction_mean)[[1]], each = length(dimnames(Interaction_mean)[[2]])),
                                     Inter_mean = as.vector(t(Interaction_mean)),
                                     Inter_min = as.vector(t(Interaction_min)),
                                     Inter_max = as.vector(t(Interaction_max))
@@ -455,11 +462,27 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
     next()
     }
   ### Model Execution ####
-  model_netassoc <- make_netassoc_network(obs = t(mat_Iter), 
-                                          plot = FALSE, verbose = FALSE)
-  save(model_netassoc, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
+    print("Model already compiled")
+    load(file.path(Dir.TreatmentIter, "Model.RData"))
+  }else{
+    model_netassoc <- make_netassoc_network(obs = t(mat_Iter), 
+                                            plot = FALSE, verbose = FALSE)
+    save(model_netassoc, file = file.path(Dir.TreatmentIter, "Model.RData"))
+  }
+  
   ### Interaction/Association Matrix ----
-  Interac_df <- model_netassoc$matrix_spsp_ses_thresholded
+  # Interac_df <- model_netassoc$matrix_spsp_ses_thresholded
+  Interac_df <- list(Effects = model_netassoc$matrix_spsp_ses_all,
+                     p = model_netassoc$matrix_spsp_pvalue)
+  Interac_df <- data.frame(Partner1 = rep(rownames(Interac_df$Effects), each = ncol(Interac_df$Effects)),
+                          Partner2 = rep(colnames(Interac_df$Effects), nrow(Interac_df$Effects)),
+                          effects = as.numeric(Interac_df$Effects), 
+                          p = as.numeric(Interac_df$p),
+                          Sig = as.numeric(Interac_df$p) < 0.05
+                          )
+  
+  Interac_df <- Interac_df[as.vector(upper.tri(model_netassoc$matrix_spsp_ses_all)), ]
   save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) 
   }
 
@@ -481,16 +504,26 @@ for(Treatment_Iter in Treatments_ls$Name){ # HMSC treatment loop
   mat_Iter[mat_Iter > 1] <- 1
   mat_Iter <- mat_Iter[colSums(mat_Iter) != 0]
   ### Model Execution ####
-  model_coccurr <- cooccur(mat = t(mat_Iter), 
+  if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
+    print("Model already compiled")
+    load(file.path(Dir.TreatmentIter, "Model.RData"))
+  }else{
+    model_coccurr <- cooccur(mat = t(mat_Iter), 
                              type = "spp_site", thresh = FALSE, spp_names = TRUE)
-  save(model_coccurr, file = file.path(Dir.TreatmentIter, "Model.RData"))
-  ### Interaction/Association Matrix ----
-  test <- tryCatch(plot(model_coccurr))
-  if(nrow(test$data) != 0){
-    jpeg(file=file.path(Dir.TreatmentIter, "Cooccur_Assocs.jpeg"), width = 32, height = 32, units = "cm", res = 100)
-    print(test)
-    dev.off() 
+    save(model_coccurr, file = file.path(Dir.TreatmentIter, "Model.RData"))
   }
+  
+  ### Interaction/Association Matrix ----
+  # test <- tryCatch(plot(model_coccurr))
+  # if(nrow(test$data) != 0){
+  #   jpeg(file=file.path(Dir.TreatmentIter, "Cooccur_Assocs.jpeg"), width = 32, height = 32, units = "cm", res = 100)
+  #   print(test)
+  #   dev.off() 
+  # }
   Interac_df <- effect.sizes(model_coccurr, standardized = TRUE)
+  Interac_df$pLT <- prob.table(model_coccurr)$p_lt
+  Interac_df$pGT <- prob.table(model_coccurr)$p_gt
+  Interac_df$Sig <- Interac_df[,4] < 0.05 | Interac_df[,5] < 0.05
+  colnames(Interac_df)[1:2] <- c("Partner1", "Partner2")
   save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) # In standardized form, these values are bounded from -1 to 1, with positive values indicating positive associations and negative values indication negative associations; see 10.18637/jss.v069.c02
 }
