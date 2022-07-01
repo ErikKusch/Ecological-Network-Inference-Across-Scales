@@ -328,11 +328,13 @@ Calc.Topology <- function(data = YFDP_df, Sig = TRUE, Model = "HMSC", TreatmentO
   
   if(Model != "ALL"){
     data <- data[,c(1:2,grep(colnames(data), pattern = Model))]
+    ModelOrder <- Model
   }else{
     HMSC_col <- grep(colnames(data), pattern = "HMSC")
     Targetcol <- c(grep(colnames(data), pattern = "diametre"), grep(colnames(data), pattern = "biomass"))
     HMSC_discard <- HMSC_col[HMSC_col %nin% Targetcol]
     if(length(HMSC_discard)>0){data <- data[,-HMSC_discard]}
+    ModelOrder <- c("COOCCUR", "NETASSOC", "HMSC", "IF-REM")
   }
   
   # model identification
@@ -510,7 +512,7 @@ Calc.Topology <- function(data = YFDP_df, Sig = TRUE, Model = "HMSC", TreatmentO
   gplot_df$EffectSize <- as.numeric(gplot_df$EffectSize)
   gplot_df$Sign <- sign(gplot_df$EffectSize)
   
-  Nest_gg <- ggplot(gplot_df, aes(x = Model, y = factor(Treatment, levels = TreatmentOrder), fill = Value, shape = as.factor(Sign), size = abs(EffectSize))) +
+  Nest_gg <- ggplot(gplot_df, aes(x = factor(Model, levels = ModelOrder), y = factor(Treatment, levels = TreatmentOrder), fill = Value, shape = as.factor(Sign), size = abs(EffectSize))) +
     geom_tile(color = "black",
               lwd = 0.5,
               linetype = 1) + 
@@ -549,7 +551,7 @@ Calc.Topology <- function(data = YFDP_df, Sig = TRUE, Model = "HMSC", TreatmentO
   gplot_df$EffectSize <- as.numeric(gplot_df$EffectSize)
   gplot_df$Sign <- sign(gplot_df$EffectSize)
   
-  Mod_gg <- ggplot(gplot_df, aes(x = Model, y = factor(Treatment, levels = TreatmentOrder), fill = Value, shape = as.factor(Sign), size = abs(EffectSize))) +
+  Mod_gg <- ggplot(gplot_df, aes(x = factor(Model, levels = ModelOrder), y = factor(Treatment, levels = TreatmentOrder), fill = Value, shape = as.factor(Sign), size = abs(EffectSize))) +
     geom_tile(color = "black",
               lwd = 0.5,
               linetype = 1) + 
@@ -587,7 +589,7 @@ Calc.Topology <- function(data = YFDP_df, Sig = TRUE, Model = "HMSC", TreatmentO
   }
   output_ls$Centrality$Strength <- data2
   
-  Strength_gg <- ggplot(output_ls$Centrality$Strength, aes(x = Model, y = Species, fill = Value)) + 
+  Strength_gg <- ggplot(output_ls$Centrality$Strength, aes(x = factor(Model, levels = ModelOrder), y = Species, fill = Value)) + 
     geom_tile(color = "black",
               lwd = 0.5,
               linetype = 1) + 
@@ -620,7 +622,7 @@ Calc.Topology <- function(data = YFDP_df, Sig = TRUE, Model = "HMSC", TreatmentO
     }
   }
   output_ls$Centrality$Eigenvector <- data2
-  Eigenvector_gg <- ggplot(output_ls$Centrality$Eigenvector, aes(x = Model, y = Species, fill = Value)) + 
+  Eigenvector_gg <- ggplot(output_ls$Centrality$Eigenvector, aes(x = factor(Model, levels = ModelOrder), y = Species, fill = Value)) + 
     geom_tile(color = "black",
               lwd = 0.5,
               linetype = 1) + 

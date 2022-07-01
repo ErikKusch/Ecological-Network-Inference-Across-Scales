@@ -212,206 +212,6 @@ plot_grid(plotlist =
 ggsave(filename = file.path(Dir.Exports, "ModelVis.png"), height = 32, width = 54, units = "cm")
 
 
-
-## TOPOLOGY ----------------------------------------------------------------
-YFDP_df2 <- YFDP_df[,-grep(pattern = "NETASSOC", colnames(YFDP_df))]
-YFDP_topo <- Calc.Topology(data = YFDP_df2, Sig = TRUE, Model = "ALL", TreatmentOrder = c("Pre-Fire", "Post-Fire"))
-ggsave(YFDP_topo$plots$Strength, file = file.path(DirEx.YFDP, "Topo_Strength.png"), height = 32, width = 32, units = "cm") 
-ggsave(YFDP_topo$plots$Eigenvector, file = file.path(DirEx.YFDP, "Topo_Eigenvector.png"), height = 32, width = 32, units = "cm") 
-ggsave(YFDP_topo$plots$Modularity, file = file.path(DirEx.YFDP, "Topo_Modularity.png"), height = 24, width = 32, units = "cm") 
-ggsave(YFDP_topo$plots$Nestedness, file = file.path(DirEx.YFDP, "Topo_Nestedness.png"), height = 24, width = 32, units = "cm") 
-# YFDP_topo$numbers
-## NETWORKS VISUALISED -----------------------------------------------------
-### all methods ----
-FName <- "Cross-YFDP2"
-png(filename = file.path(DirEx.YFDP, paste0(FName, ".png")), width = 16, height = 32, units = "cm", res = 1000)
-discard <- grep(colnames(YFDP_df), pattern = "HMSC")[grep(colnames(YFDP_df), pattern = "HMSC") %nin% grep(colnames(YFDP_df), pattern = "diametre")]
-Plot.Network(Plot_df = YFDP_df[,-discard],  
-             ModelOrder = c("COCCUR", "NETASSOC", "HMSC", "IF_REM"),
-             TreatmentOrder = c("Pre-Fire", "Post-Fire"), 
-             FName = FName,
-             Dir = DirEx.YFDP)
-dev.off()
-### HMSC only ----
-FName <- "HMSC-YFDP"
-png(filename = file.path(DirEx.YFDP, paste0(FName, ".png")), width = 16, height = 24, units = "cm", res = 1000)
-keep <- grep(colnames(YFDP_df), pattern = "HMSC")
-Part_df <- YFDP_df[,1:2]
-YFDP_df <- YFDP_df[,keep]
-names <- strsplit(colnames(YFDP_df), split = "[.]")
-colnames(YFDP_df) <- paste(lapply(names, "[[", 3), 
-                           lapply(names, "[[", 2), 
-                           lapply(names, "[[", 4),
-                           sep = ".")
-YFDP_df <- cbind(Part_df, YFDP_df)
-Plot.Network(Plot_df = YFDP_df,  
-             ModelOrder = c("presence_absence", "abundance", "diametre"),
-             TreatmentOrder = c("Pre-Fire", "Post-Fire"), 
-             FName = FName,
-             Dir = DirEx.YFDP)
-dev.off()
-
-# WITHIN-FIA, WITHIN METHOD ================================================
-message("############ WITHIN-FIA; WITHIN-METHOD")
-## FIA1: Vermont, Maine, Temperate Conifer ---------------------------------
-### DATA --------------------------------------------------------------------
-Region_ls2 <- Region_ls
-Region_ls2 <- Region_ls2[c(grep(names(Region_ls), pattern = "Vermont"), 
-                           grep(names(Region_ls), pattern = "Maine"),
-                           grep(names(Region_ls), pattern = "Temperate Broadleaf & Mixed Forests")
-)]
-Shared_spec <- Reduce(intersect, list(
-  Region_ls2$COCCUR.Vermont$Partner1,
-  Region_ls2$COCCUR.Maine$Partner1,
-  Region_ls2$`COCCUR.Temperate Broadleaf & Mixed Forests`$Partner1
-))
-Region_limited <- Limit.Lists(Region_ls2, Shared_spec)
-Region_df <- Eff.Data.Frame(List_ls = Region_limited)
-### TOPOLOGY ----------------------------------------------------------------
-Region_df2 <- Region_df[,-grep(pattern = "COCCUR", colnames(Region_df))]
-Region_topo <- Calc.Topology(data = Region_df2, Sig = TRUE, Model = "ALL", TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests"))
-ggsave(Region_topo$plots$Strength, file = file.path(DirEx.Region, "Broad-Topo_Strength.png"), height = 32, width = 32, units = "cm") 
-ggsave(Region_topo$plots$Eigenvector, file = file.path(DirEx.Region, "Broad-Topo_Eigenvector.png"), height = 32, width = 32, units = "cm") 
-ggsave(Region_topo$plots$Modularity, file = file.path(DirEx.Region, "Broad-Topo_Modularity.png"), height = 16, width = 32, units = "cm") 
-ggsave(Region_topo$plots$Nestedness, file = file.path(DirEx.Region, "Broad-Topo_Nestedness.png"), height = 16, width = 32, units = "cm")  
-### MATRICES VISUALISATIONS -------------------------------------------------
-gplot <- Plot.NetMat(data = Region_df, method = "HMSC", 
-                     TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests")) 
-ggsave(gplot, file = file.path(DirEx.Region, "Broad-HMSC-Matrix.png"), height = 32, width = 32, units = "cm") 
-gplot <- Plot.NetMat(data = Region_df, method = "IF_REM", 
-                     TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests")) 
-ggsave(gplot, file = file.path(DirEx.Region, "Broad-IF_REM-Matrix.png"), height = 16, width = 32, units = "cm") 
-gplot <- Plot.NetMat(data = Region_df, method = "NETASSOC", 
-                     TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests")) 
-ggsave(gplot, file = file.path(DirEx.Region, "Broad-NETASSOC-Matrix.png"), height = 16, width = 32, units = "cm") 
-gplot <- Plot.NetMat(data = Region_df, method = "COCCUR", 
-                     TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests")) 
-ggsave(gplot, file = file.path(DirEx.Region, "Broad-COCCUR-Matrix.png"), height = 16, width = 32, units = "cm") 
-### NETWORKS VISUALISED -----------------------------------------------------
-#### all methods ----
-FName <- "Cross-Broad_FIA"
-png(filename = file.path(DirEx.Region, paste0(FName, ".png")), width = 24, height = 32, units = "cm", res = 1000)
-discard <- grep(colnames(Region_df), pattern = "HMSC")[grep(colnames(Region_df), pattern = "HMSC") %nin% grep(colnames(Region_df), pattern = "biomass")]
-Plot.Network(Plot_df = Region_df[,-discard],  
-             ModelOrder = c("COCCUR", "NETASSOC", "HMSC", "IF_REM"),
-             TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests"), 
-             FName = FName,
-             Dir = DirEx.YFDP)
-dev.off()
-#### HMSC only ----
-FName <- "HMSC-Broad_FIA"
-png(filename = file.path(DirEx.Region, paste0(FName, ".png")), width = 24, height = 24, units = "cm", res = 1000)
-keep <- grep(colnames(Region_df), pattern = "HMSC")
-Part_df <- Region_df[,1:2]
-Region_df <- Region_df[,keep]
-names <- strsplit(colnames(Region_df), split = "[.]")
-colnames(Region_df) <- paste(lapply(names, "[[", 3), 
-                           lapply(names, "[[", 2), 
-                           lapply(names, "[[", 4),
-                           sep = ".")
-Region_df <- cbind(Part_df, Region_df)
-Plot.Network(Plot_df = Region_df,  
-             ModelOrder = c("presence_absence", "abundance", "biomass"),
-             TreatmentOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests"), 
-             FName = FName,
-             Dir = DirEx.YFDP)
-dev.off()
-
-## FIA2: Yosemite, Temperate Broadleaf & Mixed Forests ---------------------
-### DATA --------------------------------------------------------------------
-Region_ls2 <- Region_ls
-Region_ls2 <- Region_ls2[c(grep(names(Region_ls), pattern = "Yosemite"), 
-                           grep(names(Region_ls), pattern = "Temperate Conifer Forests")
-)]
-Shared_spec <- Reduce(intersect, list(
-  Region_ls2$COCCUR.Yosemite$Partner1,
-  Region_ls2$`COCCUR.Temperate Conifer Forests`$Partner1
-))
-Region_limited <- Limit.Lists(Region_ls2, Shared_spec)
-Region_df <- Eff.Data.Frame(List_ls = Region_limited)
-### TOPOLOGY ----------------------------------------------------------------
-Region_topo <- Calc.Topology(data = Region_df, Sig = TRUE, Model = "ALL", TreatmentOrder = c("Yosemite", "Temperate Conifer Forests"))
-ggsave(Region_topo$plots$Strength, file = file.path(DirEx.Region, "Coni-Topo_Strength.png"), height = 32, width = 32, units = "cm") 
-ggsave(Region_topo$plots$Eigenvector, file = file.path(DirEx.Region, "Coni-Topo_Eigenvector.png"), height = 32, width = 32, units = "cm") 
-ggsave(Region_topo$plots$Modularity, file = file.path(DirEx.Region, "Coni-Topo_Modularity.png"), height = 24, width = 32, units = "cm") 
-ggsave(Region_topo$plots$Nestedness, file = file.path(DirEx.Region, "Coni-Topo_Nestedness.png"), height = 24, width = 32, units = "cm")  
-### MATRICES VISUALISATIONS -------------------------------------------------
-gplot <- Plot.NetMat(data = Region_df, method = "HMSC", 
-                     TreatmentOrder = c("Yosemite", "Temperate Conifer Forests", "Difference")) 
-ggsave(gplot, file = file.path(DirEx.Region, "Coni-HMSC-Matrix.png"), height = 32, width = 32, units = "cm") 
-gplot <- Plot.NetMat(data = Region_df, method = "IF_REM", 
-                     TreatmentOrder = c("Yosemite", "Temperate Conifer Forests", "Difference"))
-ggsave(gplot, file = file.path(DirEx.Region, "Coni-IF_REM-Matrix.png"), height = 16, width = 32, units = "cm") 
-gplot <- Plot.NetMat(data = Region_df, method = "NETASSOC", 
-                     TreatmentOrder = c("Yosemite", "Temperate Conifer Forests", "Difference"))
-ggsave(gplot, file = file.path(DirEx.Region, "Coni-NETASSOC-Matrix.png"), height = 16, width = 32, units = "cm") 
-gplot <- Plot.NetMat(data = Region_df, method = "COCCUR", 
-                     TreatmentOrder = c("Yosemite", "Temperate Conifer Forests", "Difference"))
-ggsave(gplot, file = file.path(DirEx.Region, "Coni-COCCUR-Matrix.png"), height = 16, width = 32, units = "cm") 
-### NETWORKS VISUALISED -----------------------------------------------------
-#### all methods ----
-FName <- "Cross-Coni_FIA"
-png(filename = file.path(DirEx.Region, paste0(FName, ".png")), width = 16, height = 32, units = "cm", res = 1000)
-discard <- grep(colnames(Region_df), pattern = "HMSC")[grep(colnames(Region_df), pattern = "HMSC") %nin% grep(colnames(Region_df), pattern = "biomass")]
-Plot.Network(Plot_df = Region_df[,-discard],  
-             ModelOrder = c("COCCUR", "NETASSOC", "HMSC", "IF_REM"),
-             TreatmentOrder = c("Yosemite", "Temperate Conifer Forests"), 
-             FName = FName,
-             Dir = DirEx.Region)
-dev.off()
-#### HMSC only ----
-FName <- "HMSC-Coni_FIA"
-png(filename = file.path(DirEx.Region, paste0(FName, ".png")), width = 16, height = 24, units = "cm", res = 1000)
-keep <- grep(colnames(Region_df), pattern = "HMSC")
-Part_df <- Region_df[,1:2]
-Region_df <- Region_df[,keep]
-names <- strsplit(colnames(Region_df), split = "[.]")
-colnames(Region_df) <- paste(lapply(names, "[[", 3), 
-                             lapply(names, "[[", 2), 
-                             lapply(names, "[[", 4),
-                             sep = ".")
-Region_df <- cbind(Part_df, Region_df)
-Plot.Network(Plot_df = Region_df,  
-             ModelOrder = c("presence_absence", "abundance", "biomass"),
-             TreatmentOrder = c("Yosemite", "Temperate Conifer Forests"), 
-             FName = FName,
-             Dir = DirEx.Region)
-dev.off()
-
-# CROSS-SCALE, WITHIN METHOD ===============================================
-## for this, we need to show the same species across scales
-message("############ CROSS-SCALE; WITHIN-METHOD")
-
-## FIA: Vermont, Maine, Temperate Broadleaf --------------------------------
-### DATA --------------------------------------------------------------------
-Region_ls2 <- Region_ls
-Region_ls2 <- Region_ls2[c(grep(names(Region_ls), pattern = "Vermont"), 
-                           grep(names(Region_ls), pattern = "Maine"),
-                           grep(names(Region_ls), pattern = "Temperate Broadleaf & Mixed Forests")
-)]
-Shared_spec <- Reduce(intersect, list(
-  Region_ls2$COCCUR.Vermont$Partner1,
-  Region_ls2$COCCUR.Maine$Partner1,
-  Region_ls2$`COCCUR.Temperate Broadleaf & Mixed Forests`$Partner1
-))
-Region_limited <- Limit.Lists(Region_ls2, Shared_spec)
-Region_df <- Eff.Data.Frame(List_ls = Region_limited)
-
-HMSC_cols <- grep(colnames(Region_df), pattern = "HMSC")
-TargetHMSC <- c(grep(colnames(Region_df), pattern = "biomass"), grep(colnames(Region_df), pattern = "diametre"))
-Region_df <- Region_df[,-HMSC_cols[HMSC_cols %nin% TargetHMSC]]
-
-### MATRICES VISUALISATIONS -------------------------------------------------
-gplot <- Plot.NetMat.Cross(data = Region_df,
-                           ALLRegionOrder = c("Vermont", "Maine", "Temperate Broadleaf & Mixed Forests"),
-                           ALLMethodOrder = c("COCCUR", "NETASSOC", "HMSC", "IF_REM"))
-ggsave(gplot, file = file.path(DirEx.Region, "Cross-Broad.png"), height = 54, width = 32, units = "cm") 
-### NETWORKS VISUALISED -----------------------------------------------------
-### this is already done above
-
-### TOPOLOGY ----------------------------------------------------------------
-### this is already done above
-
 ## YFDP: Pre-Fire & FIA: Yosemite, Temperate Conifer -----------------------
 ### DATA --------------------------------------------------------------------
 YFDP_limited <- YFDP_ls[grep(names(YFDP_ls), pattern = "Pre-Fire")]
@@ -430,38 +230,29 @@ HMSC_col <- grep(colnames(Region_df), pattern = "HMSC")
 HMSC_col <- -HMSC_col[HMSC_col %nin% grep(colnames(Region_df), pattern = "biomass")]
 Region_df <- Region_df[,HMSC_col]
 data <- cbind(Region_df, YFDP_df)
+colnames(data) <- gsub(x = colnames(data), pattern = "COCCUR", replacement = "COOCCUR")
+colnames(data) <- gsub(x = colnames(data), pattern = "IF_REM", replacement = "IF-REM")
+colnames(data) <- gsub(x = colnames(data), pattern = "Yosemite", replacement = "Region")
+colnames(data) <- gsub(x = colnames(data), pattern = "Pre-Fire", replacement = "Plot")
+colnames(data) <- gsub(x = colnames(data), pattern = "Temperate Conifer Forests", replacement = "Macro")
+data$COOCCUR.Region.Sig <- FALSE
 ### TOPOLOGY ----------------------------------------------------------------
-Coni_topo <- Calc.Topology(data = data, Sig = TRUE, Model = "ALL", TreatmentOrder = c("Pre-Fire", "Yosemite", "Temperate Conifer Forests"))
+Coni_topo <- Calc.Topology(data = data, Sig = TRUE, Model = "ALL", TreatmentOrder = c("Plot", "Region", "Macro"))
 ggsave(Coni_topo$plots$Strength, file = file.path(Dir.Exports, "Coni-Topo_Strength.png"), height = 32, width = 32, units = "cm") 
 ggsave(Coni_topo$plots$Eigenvector, file = file.path(Dir.Exports, "Coni-Topo_Eigenvector.png"), height = 32, width = 32, units = "cm") 
 ggsave(Coni_topo$plots$Modularity, file = file.path(Dir.Exports, "Coni-Topo_Modularity.png"), height = 24, width = 32, units = "cm") 
 ggsave(Coni_topo$plots$Nestedness, file = file.path(Dir.Exports, "Coni-Topo_Nestedness.png"), height = 24, width = 32, units = "cm")  
 ### MATRICES VISUALISATIONS -------------------------------------------------
 gplot <- Plot.NetMat.Cross(data = data,
-                           ALLRegionOrder = c("Pre-Fire", "Yosemite", "Temperate Conifer Forests"),
-                           ALLMethodOrder = c("COCCUR", "NETASSOC", "HMSC", "IF_REM"))
+                           ALLRegionOrder = c("Plot", "Region", "Macro"),
+                           ALLMethodOrder = c("COOCCUR", "NETASSOC", "HMSC", "IF-REM"))
 ggsave(gplot, file = file.path(Dir.Exports, "Cross-Coni.png"), height = 54, width = 32, units = "cm") 
-### NETWORKS VISUALISED -----------------------------------------------------
+# ### NETWORKS VISUALISED -----------------------------------------------------
 FName <- "Cross-Coni2"
 png(filename = file.path(Dir.Exports, paste0(FName, ".png")), width = 24, height = 32, units = "cm", res = 1000)
-Plot.Network(Plot_df = data,  
-             ModelOrder = c("COCCUR", "NETASSOC", "HMSC", "IF_REM"),
-             TreatmentOrder = c("Pre-Fire", "Yosemite", "Temperate Conifer Forests"), 
+Plot.Network(Plot_df = data,
+             ModelOrder = c("COOCCUR", "NETASSOC", "HMSC", "IF-REM"),
+             TreatmentOrder = c("Plot", "Region", "Macro"),
              FName = FName,
              Dir = Dir.Exports)
 dev.off()
-
-# CROSS-SCALE, ACROSS METHOD ================================================
-message("############ CROSS-SCALE, ACROSS METHOD")
-## for this, we need to show the same species per scale
-## we only use signs here as magnitudes of effects aren't comparable
-
-## FIA: Vermont, Maine, Temperate Conifer ----------------------------------
-### DATA --------------------------------------------------------------------
-### MATRICES VISUALISATIONS -------------------------------------------------
-### TOPOLOGY ----------------------------------------------------------------
-
-## YFDP: Pre-Fire & FIA: Yosemite, Temperate Broadleaf & Mixed Forests -----
-### DATA --------------------------------------------------------------------
-### MATRICES VISUALISATIONS -------------------------------------------------
-### TOPOLOGY ----------------------------------------------------------------
