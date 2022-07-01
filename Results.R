@@ -44,6 +44,7 @@ message("############ WITHIN-YFDP; WITHIN-METHOD")
 ## DATA --------------------------------------------------------------------
 YFDP_limited <- Limit.Lists(YFDP_ls, YFDP_spec)
 YFDP_df <- Eff.Data.Frame(List_ls = YFDP_limited)
+
 ## MATRICES VISUALISATIONS -------------------------------------------------
 gplot <- Plot.NetMat(data = YFDP_df, method = "HMSC") 
 ggsave(gplot, file = file.path(DirEx.YFDP, "HMSC-Matrix.png"), height = 32, width = 32, units = "cm") 
@@ -208,7 +209,6 @@ plot_grid(plotlist =
           ncol = 1,
           labels = c("")
 )
-
 ggsave(filename = file.path(Dir.Exports, "ModelVis.png"), height = 32, width = 54, units = "cm")
 
 

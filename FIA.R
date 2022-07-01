@@ -370,6 +370,7 @@ if(file.exists(file.path(Dir.FIA, "Ranges_poly.RData"))){
 for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   load(file.path(Dir.FIA, paste0("FIABiome",Treatment_Iter,".RData")))
   message(paste("### Biome:", BiomeName, "(", nrow(ModelFrames_ls$FitCom), "Sites )"))
+  
   Dir.TreatmentIter <- file.path(Dir.NETASSOC, Treatment_Iter)
   if(!dir.exists(Dir.TreatmentIter)){dir.create(Dir.TreatmentIter)}
   sink(file.path(Dir.TreatmentIter, "Biome.txt"))
