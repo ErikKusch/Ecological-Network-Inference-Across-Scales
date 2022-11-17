@@ -70,7 +70,8 @@ package_vec <- c(
   "igraph", # for centrality and modularity
   "maxnodf", # for nestedness
   "scales",
-  "gridExtra"
+  "gridExtra",
+  "remotes"
 )
 sapply(package_vec, install.load.package)
 
@@ -98,8 +99,14 @@ if("V.PhyloMaker" %in% rownames(installed.packages()) == FALSE){ # PhyloMaker ch
 }
 library(V.PhyloMaker) 
 
+## betalink ---------------------------------------------------------------
+if("betalink" %in% rownames(installed.packages()) == FALSE){
+  install_version("betalink", version = "2.2.1", repos = "http://cran.us.r-project.org")
+}
+library(betalink) 
+
 ## Rethinking -------------------------------------------------------------
-if("rethinking" %in% rownames(installed.packages()) == FALSE){ # PhyloMaker check
+if("rethinking" %in% rownames(installed.packages()) == FALSE){
   Sys.setenv(R_REMOTES_NO_ERRORS_FROM_WARNINGS="true")
   devtools::install_github("stan-dev/cmdstanr")
   install.packages(c("coda","mvtnorm","devtools","loo","dagitty"))
