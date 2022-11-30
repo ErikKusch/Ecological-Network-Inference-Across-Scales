@@ -453,7 +453,9 @@ Eff.Data.Frame <- function(List_ls = NULL){
                              Matched = List_df[match(AB_inter, BA_inter),IF_REM_Iter]
       )
       List_df$XYZ <- rowMeans(means_df, na.rm = TRUE)
-      List_df$XYZ[duplicated(List_df$XYZ)] <- NA
+      if(!(endsWith(colnames(List_df)[IF_REM_Iter],"Sig"))){
+        List_df$XYZ[duplicated(List_df$XYZ)] <- NA
+      }
       colnames(List_df)[ncol(List_df)] <- gsub(pattern = "IF_REM", replacement = "IF_REM_Assoc", x = colnames(List_df)[IF_REM_Iter])
     }
   }

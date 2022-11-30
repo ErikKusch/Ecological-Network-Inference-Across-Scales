@@ -55,7 +55,7 @@ sink(file = file.path(Dir.Exports, "SpeciesLegend.txt"))
 print(SpeciesLegend)
 sink()
 
-YFDP_full <- Eff.Data.Frame(List_ls =Limit.Lists(YFDP_ls, YFDP_spec))
+YFDP_full <- Eff.Data.Frame(List_ls = Limit.Lists(YFDP_ls, YFDP_spec))
 YFDP_full$Partner1 <- SpeciesLegend$Abbr[match(YFDP_full$Partner1, SpeciesLegend$Full)]
 YFDP_full$Partner2 <- SpeciesLegend$Abbr[match(YFDP_full$Partner2, SpeciesLegend$Full)]
 
@@ -405,14 +405,15 @@ ggsave(grid2, filename = file.path(Dir.Exports, "Figure2.jpg"),
 # TABLES – BETADIVERSITY COMPARISON =========================================
 message("############ BETADIVERSITY TABLES")
 makeigraph <- function(data1){
-  if(0 %in% data1$Sig){
+  # data1$Sig <- as.numeric(data1$Sig)
+  if(class(data1$Sig) == "factor"){
     data1$Sig <- as.character(data1$Sig)
     data1$Sig[which(data1$Sig == 0 | data1$Sig == 0.5)] <- FALSE
     data1$Sig[which(data1$Sig == 1)] <- TRUE
   } # then its NDD-RIM data
   data1$Sig[is.na(data1$Sig)] <- FALSE
   ig1 <- graph_from_data_frame(data1[data1$Sig == TRUE,], directed = FALSE)
-  if(length(ig1) != 0){
+  if(length(E(ig1)) != 0){
     E(ig1)$weight <-E(ig1)$Value
     E(ig1)$weight[E(ig1)$weight > 0] <- 1
     E(ig1)$weight[E(ig1)$weight < 0] <- -1
@@ -432,7 +433,7 @@ makeigraph <- function(data1){
 
 betadiv_calc <- function(Compare = "HMSC"){
   Full_ls <- lapply(MATplots_ls, FUN = function(x){
-    x[names(x) != "NDD_RIM_ASSOC"]
+    x[names(x) != "NDD_RIM"]
   })
   
   firstlevl <- names(Full_ls)
@@ -464,7 +465,7 @@ print(betadiv_calc("NETASSOC"))
 print("############### HMSC")
 print(betadiv_calc("HMSC"))
 print("############### NDD-RIM")
-print(betadiv_calc("NDD_RIM"))
+print(betadiv_calc("NDD_RIM_ASSOC"))
 
 print("############### Plot")
 print(betadiv_calc("Plot"))
