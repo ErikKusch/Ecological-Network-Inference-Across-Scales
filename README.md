@@ -54,4 +54,4 @@ Our research highlights a lack of consensus in inferred ecological networks acro
 We argue that the choice of ecological network inference approach needs to consider: (1) alignment of link-interpretation with research questions, (2) applicability of the network inference method at the geographic scale of study, (3) data availability and information content at the geographic scale of study, and (4) biological mechanisms which are identifiable using network inference at the scale of study. 
 
 ## Funding
-Aarhus University Research Foundation Strat-up Grant (grant no. AUFF-2018-7-8) 
+Aarhus University Research Foundation Start-up Grant (grant no. AUFF-2018-7-8) 
