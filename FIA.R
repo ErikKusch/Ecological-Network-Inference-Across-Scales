@@ -23,8 +23,8 @@ source("X - Functions_Bayes.R")
 source("X - Functions_Data.R")
 
 ## Bayes Settings ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-nSamples <- 9000
-nWarmup <- 100
+nSamples <- 1000
+nWarmup <- 500
 nChains <- 4
 thin <- 1
 
@@ -58,7 +58,9 @@ if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", c(1000:1001, 1003), ".R
 # FIABiomes_fs <- list.files(path = Dir.FIA, pattern = "FIABiome")
 
 # ANALYSIS =================================================================
-Treatment_Vec <- c(1000, 1001, 1003, 8:9)
+Treatment_Vec <- c(1003, 9 # this is the temperate confier comparison
+                   #, 1000, 1001, 8 # this would be a temperate broadleaf comparison
+                   )
 
 ## HMSC --------------------------------------------------------------------
 message("############ STARTING HMSC ANALYSES")
@@ -263,69 +265,96 @@ for(Treatment_Iter in Treatment_Vec){ # "Vermont, Maine, Yosemite, Temperate Bro
   Index_df <- cbind(ModelFrames_ls$Fitness,
                     ModelFrames_ls$Community[match(ModelFrames_ls$Fitness$SiteID,
                                                    ModelFrames_ls$Community$SiteID),  -1])
-  # Index_df <- Index_df[, -which(colSums(Index_df[,-1:-3]) == 0)-3]
+  Index_df <- Index_df[, c(1:3, which(colSums(Index_df[, -1:-3]) != 0) + 3)] # ensuring only present species are retained
   Index_df <- Index_df[which(Index_df$value > 0), ]
   # Index_df <- Index_df[which(Index_df$value > 2.5), ]
   
   ### DATA PREPRATION ####
-  StanList_Iter <- FUN.StanList(Fitness = "value", data = Index_df)
+  StanList_Iter <- data_prep(perform = "value",
+                             focal = "taxon",
+                             plot = "SiteID",
+                             df = Index_df,
+                             nonNcols = 3)
+    # FUN.StanList(Fitness = "value", data = Index_df)
   
   ### DATA CHECKS ####
+  df <- Index_df
+  neighbourID <- colnames(df)[-1:-3]
+  
+  N_all <- df[ , neighbourID]
+  N_all <- apply(N_all, c(1,2), as.numeric)
+  X_all <- cbind(model.matrix(~as.factor(df$taxon)), N_all)
+  R_all <- pracma::rref(X_all)
+  Z_all <- t(R_all) %*% R_all
+  indep <- sapply(seq(1, dim(Z_all)[1], 1), function(k){ 
+    ifelse(Z_all[k, k] == 1 & sum(Z_all[k, -k]) == 0, 1, 0)
+  }) #
+  all(indep == 1) # if TRUE then neighbours are linearly independent and we can continue
+  if(!all(indep == 1)) warning('WARNING neighbours are not linearly independent') 
   FUN.DataDims(data = StanList_Iter)
   
   #### Preferences
   rstan_options(auto_write = TRUE)
   rstan_options(javascript = FALSE)
-  options(mc.cores = 1)
+  options(mc.cores = 4)
   
   ### Model Execution ----
   if(file.exists(file.path(Dir.TreatmentIter, "Model.RData"))){
     message("Model already compiled")
     load(file.path(Dir.TreatmentIter, "Model.RData"))
   }else{
-    unlink(file.path(Dir.Base, "joint_model_updated.rds"))
-    Stan_model <- stan(file = 'joint_model_updated.stan',
-                       data =  StanList_Iter,
-                       chains = 1,
-                       warmup = nWarmup*nChains/2,
-                       iter = nSamples*nChains/2,
-                       refresh = 100,
-                       control = list(max_treedepth = 10),
-                       model_name = BiomeName
+    unlink(file.path(Dir.Base, "joint_model_MEE_FIA.exe"))
+    unlink(file.path(Dir.Base, "joint_model_MEE_FIA.rds"))
+    Stan_model <- rstan::stan(file = 'joint_model_MEE_FIA.stan',
+                              data =  StanList_Iter,
+                              chains = nChains,
+                              warmup = round(nWarmup/1, 0),
+                              iter = round(nSamples/1, 0),
+                              cores = nChains,
+                              include = TRUE,
+                              pars = "ndd_betaij",
+                              refresh = 10,
+                              control = list(max_treedepth = 10,
+                                             adapt_delta = 0.9),
+                              model_name = BiomeName,
+                              seed = 42
     )
     save(Stan_model, file = file.path(Dir.TreatmentIter, "Model.RData"))
   }
-  
-  ### Model Diagnostics ----
-  # Get the full posteriors
+  # }
+  # ### Model Diagnostics ----
+  # # Get the full posteriors
   joint.post.draws <- extract.samples(Stan_model)
-  # Select parameters of interest
-  param.vec <- Stan_model@model_pars[Stan_model@model_pars %nin% c('response1', 'responseSm1', 'lp__')]
-  # Draw 1000 samples from the 80% posterior interval for each parameter of interest
-  p.samples <- list()
-  p.samples <- sapply(param.vec[param.vec %nin% c('ri_betaij', 'ndd_betaij')], function(p) {
-    p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
-      sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = 100)
-    })  # this only works for parameters which are vectors
-  })
-  # there is only one sigma_alph parameter so we must sample differently:
-  intrinsic.perf <- p.samples$beta_i0
-  colnames(intrinsic.perf) <- levels(factor(Index_df$taxon))
-  # inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
-  #                                 response = p.samples$response,
-  #                                 effect = p.samples$effect,
-  #                                 focalID = levels(factor(Index_Iter$taxon)),
-  #                                 neighbourID = colnames(Index_Iter[, -1:-3]))
+  # # Select parameters of interest
+  # param.vec <- Stan_model@model_pars[Stan_model@model_pars %nin% c('response1', 'responseSm1', 'lp__')]
+  # # Draw 1000 samples from the 80% posterior interval for each parameter of interest
+  # p.samples <- list()
+  # p.samples <- sapply(param.vec[param.vec %nin% c('ri_betaij', 'ndd_betaij',
+  #                                                 "weight", "mu", "mu2"
+  # )], function(p) {
+  #   print(p)
+  #   p.samples[[p]] <- apply(joint.post.draws[[p]], 2, function(x){
+  #     sample(x[x > quantile(x, 0.1) & x < quantile(x, 0.9)], size = 100)
+  #   })  # this only works for parameters which are vectors
+  # })
+  # # there is only one sigma_alph parameter so we must sample differently:
+  # intrinsic.perf <- p.samples$gamma_i
+  # colnames(intrinsic.perf) <- levels(factor(Index_df$taxon))
+  # # inter_mat <- return_inter_array(joint.post.draws = joint.post.draws,
+  # #                                 response = p.samples$response,
+  # #                                 effect = p.samples$effect,
+  # #                                 focalID = levels(factor(Index_Iter$taxon)),
+  # #                                 neighbourID = colnames(Index_Iter[, -1:-3]))
   inter_mat <- aperm(joint.post.draws$ndd_betaij, c(2, 3, 1))
   rownames(inter_mat) <- levels(factor(Index_df$taxon))
   colnames(inter_mat) <- levels(factor(Index_df$taxon))
-  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction
-  try(stan_model_check(fit = Stan_model,
-                       results_folder = Dir.TreatmentIter,
-                       params = param.vec))
+  # inter_mat is now a 3 dimensional array, where rows = focals, columns = neighbours and 3rd dim = samples from the posterior; inter_mat[ , , 1] should return a matrix consisting of one sample for every interaction 
+  # try(stan_model_check(fit = Stan_model,
+  #                      results_folder = Dir.TreatmentIter,
+  #                      params = param.vec))
   
   ### Interaction/Association Matrix ----
-  Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)
+  Interaction_mean <- apply(inter_mat, c(1, 2), mean) # will return the mean estimate for every interaction (NB: this is the mean of the 80% posterior interval, so will be slightly different to the mean value returned from summary(fit), which is calculated from the full posterior distribution)  
   Interaction_mean <- Interaction_mean*-1 # need to switch sign of results
   diag(Interaction_mean) <- NA
   Interaction_hpdi <- apply(inter_mat, c(1, 2), HPDI, prob = 0.89)
@@ -342,7 +371,6 @@ for(Treatment_Iter in Treatment_Vec){ # "Vermont, Maine, Yosemite, Temperate Bro
   Interactions_IFREM <- Interactions_igraph[order(abs(Interactions_igraph$Inter_mean), decreasing = TRUE), ]
   Interactions_IFREM <- na.omit(Interactions_IFREM)
   save(Interactions_IFREM, file = file.path(Dir.TreatmentIter, "Interac.RData"))
-  
 }
 
 ## NETASSOC ----------------------------------------------------------------
