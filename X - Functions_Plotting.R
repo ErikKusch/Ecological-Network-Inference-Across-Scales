@@ -471,6 +471,8 @@ Calc.Topology <- function(data_ls = Comparable_ls,
     g <- igraph::graph_from_data_frame(d = data_i, directed = directed)
     
     adj <- igraph::as_adjacency_matrix(g, attr = "weight")
+    
+    g_mod <- g
     if(!is.null(E(g)$weight)){
       E(g)$weight <- abs(E(g)$weight)
     }
@@ -499,17 +501,26 @@ Calc.Topology <- function(data_ls = Comparable_ls,
     output_ls$Centrality$Eigenvector <- rbind(output_ls$Centrality$Eigenvector, ecvent_df)
     
     ## Network-Level Topology ----
-    
     ### Modularity
     print("Modularity")
-    Fun.Modu <- function(g){
-      E(g)$weight[is.na(E(g)$weight)] <- 0
-      e <- simplify(g)
-      fc <- cluster_optimal(g)
-      modularity <- modularity(e, membership = fc$membership, weights = E(e)$weight)
+    Fun.Modu <- function(g_mod){
+      E(g_mod)$weight[is.na(E(g_mod)$weight)] <- 0
+      e <- simplify(g_mod)
+    
+        fc <- try(cluster_spinglass(g_mod, implementation = "neg", spins = 1e2), silent = TRUE)
+        if(class(fc) == "try-error"){
+          # stop()
+          modularity <- NA
+          rm(fc)
+          # fc <- cluster_optimal(g)
+          # modularity <- modularity(e, membership = fc$membership)
+        }else{
+          modularity <- fc$modularity
+        }
+      
       return(modularity)
     }
-    Modu_infer <- Fun.Modu(g)
+    Modu_infer <- Fun.Modu(g_mod)
     
     output_ls$Modularity <- rbind(output_ls$Modularity, c(Modu_infer, name_Model, name_Region))
     

@@ -475,6 +475,44 @@ print("############### Macro")
 print(betadiv_calc("Macro"))
 sink()
 
+betadivWithin_gg <- rbind(
+  cbind(betadiv_calc("COCCUR"), Method = "COCCUR")[,c(1,2,4,8)],
+  cbind(betadiv_calc("NETASSOC"), Method = "NETASSOC")[,c(1,2,4,8)],
+  cbind(betadiv_calc("HMSC"), Method = "HMSC")[,c(1,2,4,8)],
+  cbind(betadiv_calc("NDD_RIM_ASSOC"), Method = "NDD_RIM_ASSOC")[,c(1,2,4,8)]
+)
+colnames(betadivWithin_gg)[3] <- "Dissimilarity"
+betadivWithin_gg$Method <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivWithin_gg$Method)
+betadivWithin_gg$Method <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivWithin_gg$Method)
+
+betadivWithin_gg <- ggplot(betadivWithin_gg, aes(x = factor(j, level = c("Plot", "Region", "Macro")), 
+                             y = factor(i, level = c("Plot", "Region", "Macro"))
+                               )) +
+  geom_tile(aes(fill = Dissimilarity)) +
+  facet_wrap(~ factor(Method, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))) + 
+  scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
+  theme_bw() + labs(x = "Scale", y = "Scale")
+ggsave(betadivWithin_gg, file = file.path(Dir.Exports, "FigureBetaDivWithin.jpg"), height = 30, width = 42, units = "cm")  
+
+betadivAcross_gg <- rbind(
+  cbind(betadiv_calc("Macro"), Scale = "Macro")[,c(1,2,4,8)],
+  cbind(betadiv_calc("Region"), Scale = "Region")[,c(1,2,4,8)],
+  cbind(betadiv_calc("Plot"), Scale = "Plot")[,c(1,2,4,8)]
+)
+colnames(betadivAcross_gg)[3] <- "Dissimilarity"
+betadivAcross_gg$i <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivAcross_gg$i)
+betadivAcross_gg$j <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivAcross_gg$j)
+
+betadivAcross_gg <- ggplot(betadivAcross_gg, aes(x = factor(j, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM")), 
+                                                 y = factor(i, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))
+)) +
+  geom_tile(aes(fill = Dissimilarity)) +
+  facet_wrap(~ factor(Scale, level = c("Plot", "Region", "Macro"))) + 
+  scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
+  theme_bw() + labs(x = "Approach", y = "Approach")  
+betadivAcross_gg
+ggsave(betadivAcross_gg, file = file.path(Dir.Exports, "FigureBetaDivAcross.jpg"), height = 16, width = 42, units = "cm")
+
 # S5 - NETWORK VISUALISATION ACROSS SCALES ==================================
 message("############ S5")
 FName <- "S5"
