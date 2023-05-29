@@ -44,9 +44,12 @@ Species_df <- data.frame(Short = c("PILA", "ABCO", "CADE",
                                   "Abies magnifica", "Prunus emarginata", "Cornus sericea", 
                                   "Unknown", "Pseudotsuga menziesii", "Corylus cornuta")
 )
-Treatments_ls <- list(Name = c("Pre-Fire", "Post-Fire"),
-                      File = c("yfdp_CTFS_Census_1_20211109_for_Erik.csv",
-                               "yfdp_CTFS_Census_2_20211109_for_Erik.csv")
+Treatments_ls <- list(Name = c("Pre-Fire"
+                               # , "Post-Fire"
+                               ),
+                      File = c("yfdp_CTFS_Census_1_20211109_for_Erik.csv"
+                               # ,"yfdp_CTFS_Census_2_20211109_for_Erik.csv"
+                               )
 )
 
 ## FUNCTIONAL TRAITS -------------------------------------------------------
@@ -74,6 +77,7 @@ if(!file.exists(file.path(Dir.YFDP, "Traits_df.csv"))){
 
 ## REFOMRATTING RAW DATA ---------------------------------------------------
 for(Treatment_Iter in 1:length(Treatments_ls$Name)){
+  if(file.exists(file.path(Dir.YFDP, paste0(Treatments_ls$Name[Treatment_Iter], "_ModelFrames.RData")))){next()}
   message(paste("Preparing data for", Treatments_ls$Name[Treatment_Iter], "treatment"))
   Raw_df <- read.csv(file.path(Dir.YFDP, Treatments_ls$File[Treatment_Iter]))
   Raw_df <- Raw_df[Raw_df$SPECIES != "UNKN", ]
@@ -81,7 +85,7 @@ for(Treatment_Iter in 1:length(Treatments_ls$Name)){
   if(Treatment_Iter == 2){ # remove DBHs that have been altered by fire in post-fire data
     Raw_df <- Raw_df[Raw_df$BURN_AT_DBH != 3, ]
   }
-  YFDP_df <- data.frame(SiteID = Raw_df$QUADRAT,
+  YFDP_df <- data.frame(SiteID = as.numeric(factor((Raw_df$QUADRAT))), # Raw_df$QUADRAT
                         taxon = Raw_df$SPECIES,
                         value = Raw_df$DBH,
                         Lon = Raw_df$UTM_X,
