@@ -1,5 +1,5 @@
 # Ecological Network Inference across Scales
-Chapter 3 of my PhD project.
+Part of Chapter 3 of my PhD project.
 
 ## Abstract
 1.	Ecosystem stability has been linked to the topology of ecological networks; an attribute difficult to quantify at macroecological scales due to a limited number of ecological networks inferred using field observations. Several methods for inference of ecological networks have been proposed to overcome this shortfall using distributional and population information, but the consistency among these remains unstudied.
@@ -13,7 +13,7 @@ Chapter 3 of my PhD project.
 
 ## Primary Contact and Collaborators
 ### Primary Contact
-Erik Kusch (erik.kusch@bio.au.dk, [OrcID](https://orcid.org/my-orcid?orcid=0000-0002-4984-7646))  
+Erik Kusch (erik.kusch@nhm.uio.no, [OrcID](https://orcid.org/my-orcid?orcid=0000-0002-4984-7646))  
 PhD Student  
 Department of Biology  
 Section for Ecoinformatics & Biodiversity  
@@ -42,7 +42,7 @@ We infer ecological networks using four separate ecological network inference me
 - COOCCUR (https://cran.r-project.org/web/packages/cooccur/index.html)
 - NETASSOC (https://cran.r-project.org/web/packages/netassoc/index.html)
 - HMSC (https://cran.r-project.org/web/packages/Hmsc/index.html)
-- IF-REM (https://www.biorxiv.org/content/10.1101/2022.03.28.486154v1)
+- NDD-RIM (https://www.biorxiv.org/content/10.1101/2022.03.28.486154v1)
 
 We do so for three distinct scales: (1) YFDP-scale (plot scale, (2) FIA data for the Yosemite National Park region (regional scale), and (3) FIA data for all Temperate Conifer Forests across North America (macro-scale).
 

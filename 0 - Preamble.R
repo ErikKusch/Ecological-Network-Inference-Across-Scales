@@ -71,7 +71,8 @@ package_vec <- c(
   "maxnodf", # for nestedness
   "scales",
   "gridExtra",
-  "remotes"
+  "remotes",
+  "betalink"
 )
 sapply(package_vec, install.load.package)
 
