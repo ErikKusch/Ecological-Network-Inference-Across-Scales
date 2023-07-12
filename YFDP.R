@@ -222,7 +222,7 @@ for(Treatment_Iter in Treatments_ls$Name[1]){ # HMSC treatment loop
   Traits_Iter <- Traits_Iter[,-1]
 
   ### DATA PREPRATION ####
-  S <- Metadata_Iter[ , c("SiteID", "Lat", "Lon")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
+  S <- Metadata_Iter[ , c("SiteID")] # S: study design, including units of study and their possible coordinates, If you don't have variables that define the study design, indicate this by S=NULL
   X <- Metadata_Iter[ , c("SiteID", ECV_vec)] # X: covariates to be used as predictors, If you don't have covariate data, indicate this by X=NULL
   Y_BM <- ModelFrames_Iter$FitCom[ , -1] # Y: species data
   Y_AB <- ModelFrames_Iter$Community[ , -1] # Y: species data
@@ -262,8 +262,8 @@ for(Treatment_Iter in Treatments_ls$Name[1]){ # HMSC treatment loop
   XFormula <- as.formula(paste("~ ", paste(ECV_vec[1:3], collapse = " + "), sep = " + "))
   TrFormula <- ~SLA + LEAF_C + LEAF_N
   ## StudyDesign
-  unique_plot <- paste(S$SiteID, sep="_")
-  studyDesign <- data.frame(site = as.factor(S$SiteID))
+  unique_plot <- paste(S, sep="_")
+  studyDesign <- data.frame(site = as.factor(S))
   St <- studyDesign$site
   rL.site <- HmscRandomLevel(units = levels(St))
   ## Model Objects

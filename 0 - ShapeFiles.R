@@ -8,35 +8,35 @@
 #' ####################################################################### #
 
 #### LAND MASK (for masking species in the sea which are terrestrial and marine) -----------------------------------------------------------
-if(!file.exists(file.path(Dir.Shapes, "LandMask.zip"))){ # if land mask has not been downloaded yet
-  download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_land.zip", destfile = paste(Dir.Shapes, "LandMask.zip", sep="/")) # download cultural vector
-  unzip(paste(Dir.Shapes, "LandMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
-}
-LandMask <- readOGR(Dir.Shapes, "ne_10m_land", verbose = FALSE) # read land mask in
+# if(!file.exists(file.path(Dir.Shapes, "LandMask.zip"))){ # if land mask has not been downloaded yet
+#   download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_land.zip", destfile = paste(Dir.Shapes, "LandMask.zip", sep="/")) # download cultural vector
+#   unzip(paste(Dir.Shapes, "LandMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
+# }
+# LandMask <- readOGR(Dir.Shapes, "ne_10m_land", verbose = FALSE) # read land mask in
 
 #### COUNTRY MASK (for producing maps with national borders) -----------------------------------------------------------
-if(!file.exists(file.path(Dir.Shapes, "CountryMask.zip"))){ # if land mask has not been downloaded yet
-  download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip", destfile = paste(Dir.Shapes, "CountryMask.zip", sep="/")) # download cultural vector
-  unzip(paste(Dir.Shapes, "CountryMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
-}
-CountryMask <- readOGR(Dir.Shapes, "ne_10m_admin_0_countries", verbose = FALSE) # read land mask in
+# if(!file.exists(file.path(Dir.Shapes, "CountryMask.zip"))){ # if land mask has not been downloaded yet
+#   download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_admin_0_countries.zip", destfile = paste(Dir.Shapes, "CountryMask.zip", sep="/")) # download cultural vector
+#   unzip(paste(Dir.Shapes, "CountryMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
+# }
+# CountryMask <- readOGR(Dir.Shapes, "ne_10m_admin_0_countries", verbose = FALSE) # read land mask in
 
 #### STATE MASK (for producing maps with state borders) -----------------------------------------------------------
-if(!file.exists(file.path(Dir.Shapes, "StateMask.zip"))){ # if land mask has not been downloaded yet
-  download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/110m/cultural/ne_110m_admin_1_states_provinces.zip", destfile = paste(Dir.Shapes, "StateMask.zip", sep="/")) # download cultural vector
-  unzip(paste(Dir.Shapes, "StateMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
-}
-StateMask <- readOGR(Dir.Shapes, "ne_110m_admin_1_states_provinces", verbose = FALSE) # read land mask in
+# if(!file.exists(file.path(Dir.Shapes, "StateMask.zip"))){ # if land mask has not been downloaded yet
+#   download.file("https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/110m/cultural/ne_110m_admin_1_states_provinces.zip", destfile = paste(Dir.Shapes, "StateMask.zip", sep="/")) # download cultural vector
+#   unzip(paste(Dir.Shapes, "StateMask.zip", sep="/"), exdir = Dir.Shapes) # unzip the data
+# }
+# StateMask <- readOGR(Dir.Shapes, "ne_110m_admin_1_states_provinces", verbose = FALSE) # read land mask in
 
 #### ECOREGIONS -----------------------------------------------------------
-if(!file.exists(file.path(Dir.Shapes, "WWF_ecoregions"))){
-  download.file("http://assets.worldwildlife.org/publications/15/files/original/official_teow.zip", destfile = file.path(Dir.Shapes, "wwf_ecoregions.zip"))
-  unzip(file.path(Dir.Shapes, "wwf_ecoregions.zip"), exdir = file.path(Dir.Shapes, "WWF_ecoregions"))
-}
-EcoregionsMask <- readOGR(file.path(Dir.Shapes, "WWF_ecoregions", "official", "wwf_terr_ecos.shp"), verbose = FALSE) # loading shapefile for wwf ecoregions
+# if(!file.exists(file.path(Dir.Shapes, "WWF_ecoregions"))){
+#   download.file("http://assets.worldwildlife.org/publications/15/files/original/official_teow.zip", destfile = file.path(Dir.Shapes, "wwf_ecoregions.zip"))
+#   unzip(file.path(Dir.Shapes, "wwf_ecoregions.zip"), exdir = file.path(Dir.Shapes, "WWF_ecoregions"))
+# }
+# EcoregionsMask <- readOGR(file.path(Dir.Shapes, "WWF_ecoregions", "official", "wwf_terr_ecos.shp"), verbose = FALSE) # loading shapefile for wwf ecoregions
 ### vectors for WWF region naming
-Abbr_Realms <- levels((EcoregionsMask$REALM))
-Full_Realms <- c("Australasia", "Antarctic", "Afrotropics", "IndoMalay", "Nearctic", "Neotropics", "Oceania", "Palearctic")
+# Abbr_Realms <- levels((EcoregionsMask$REALM))
+# Full_Realms <- c("Australasia", "Antarctic", "Afrotropics", "IndoMalay", "Nearctic", "Neotropics", "Oceania", "Palearctic")
 Abbr_Biomes <- c(1:14, 99, 98)
 Full_Biomes <- c("Tropical & Subtropical Moist Broadleaf Forests",
                  "Tropical & Subtropical Dry Broadleaf Forests",
@@ -88,19 +88,19 @@ Abbr_Biomes <- c(Abbr_Biomes, 1000, 1001, 1003)
 Full_Biomes <- c(Full_Biomes, "Vermont", "Maine", "Yosemite")
 
 #### ERA5-LAND MASK --------------------------------------------------------
-if(!file.exists(file.path(Dir.Shapes, "LandMask.nc"))) { # if not downloaded yet
-  LandMaskERA5 <- download_ERA(
-    Variable = "2m_temperature",
-    DataSet = "era5-land",
-    DateStart = "1995-01-01",
-    DateStop = "1995-01-01",
-    TResolution = "day",
-    TStep = 1,
-    FileName = "LandMask",
-    Dir = Dir.Base,
-    API_User = API_User,
-    API_Key = API_Key
-  )
-}else{
-  LandMaskERA5 <- raster(file.path(Dir.Shapes, "LandMask.nc"))
-}
+# if(!file.exists(file.path(Dir.Shapes, "LandMask.nc"))) { # if not downloaded yet
+#   LandMaskERA5 <- download_ERA(
+#     Variable = "2m_temperature",
+#     DataSet = "era5-land",
+#     DateStart = "1995-01-01",
+#     DateStop = "1995-01-01",
+#     TResolution = "day",
+#     TStep = 1,
+#     FileName = "LandMask",
+#     Dir = Dir.Base,
+#     API_User = API_User,
+#     API_Key = API_Key
+#   )
+# }else{
+#   LandMaskERA5 <- raster(file.path(Dir.Shapes, "LandMask.nc"))
+# }

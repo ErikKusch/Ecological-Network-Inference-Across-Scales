@@ -41,14 +41,14 @@ if(!file.exists(file.path(Dir.FIA, "FIABiomes_df.rds"))){
 }
 
 ## FIA DATA RETRIEVAL ------------------------------------------------------
-if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", 1:13, ".RData")))) != 13){
+if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", 9, ".RData")))) != 1){ #1:13
   FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), 
           nCores = parallel::detectCores(), 
           Dir.FIA = Dir.FIA,
           Shape = FIA_shp,
           Name = "BIOMES")
 }
-if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", c(1000:1001, 1003), ".RData")))) != 3){
+if(sum(file.exists(file.path(Dir.FIA, paste0("FIABiome", c(1003), ".RData")))) != 1){ #1000:1001, 
   FUN.FIA(states = c("AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY"), 
           nCores = parallel::detectCores(), 
           Dir.FIA = Dir.FIA,
@@ -379,7 +379,6 @@ Dir.NETASSOC <- file.path(DirEx.Region, "NETASSOC")
 if(!dir.exists(Dir.NETASSOC)){dir.create(Dir.NETASSOC)}
 
 ### Null model ranges ----
-
 FIABiomass_df <- rbind(readRDS(file.path(Dir.FIA, "FIABiomes_df_BIOMES.rds")),
       readRDS(file.path(Dir.FIA, "FIABiomes_df_STATES.rds")))
 
@@ -475,7 +474,6 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   Interac_df <- Interac_df[as.vector(upper.tri(model_netassoc$matrix_spsp_ses_all)), ]
   save(Interac_df, file = file.path(Dir.TreatmentIter, "Interac.RData")) 
 }
-
 
 ## COOCCUR -----------------------------------------------------------------
 message("############ STARTING COCCUR ANALYSES")
