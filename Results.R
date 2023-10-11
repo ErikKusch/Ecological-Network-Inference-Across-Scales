@@ -431,7 +431,7 @@ makeigraph <- function(data1){
   ig1
 }
 
-betadiv_calc <- function(Compare = "HMSC"){
+betadiv_calc <- function(Compare = "HMSC", Approach = "Matrix"){
   Full_ls <- lapply(MATplots_ls, FUN = function(x){
     x[names(x) != "NDD_RIM"]
   })
@@ -451,67 +451,113 @@ betadiv_calc <- function(Compare = "HMSC"){
     })
   }
   
-  betadiv_df <- betalink::network_betadiversity(N = Compare_ls)
-  # ratio of dissimilarity of interactions due to species turnover compared to dissimilarity of interactions in shared species-pairs
-  betadiv_df$STvOS <- betadiv_df$ST/betadiv_df$OS
-  betadiv_df
+  if(Approach == "Matrix"){
+    Cnames <- names(Compare_ls)
+    specs <- sort(Reduce(intersect, lapply(Compare_ls, FUN = function(y){V(y)$name})))
+    Compare_ls <- lapply(Compare_ls, FUN = function(x){
+      if(length(E(x)) == 0){
+        z <- as.matrix(as_adjacency_matrix(x))
+      }else{
+        z <- as.matrix(as_adjacency_matrix(x, attr = "weight"))
+      }
+      keep <- na.omit(match(
+        specs,
+        colnames(z))
+      )
+      # which(colnames(z) %in% c("Abco", "Abma", "Cade", "Conu", "Pila", "Pipo", "Psme", "Quke"))
+      z <- z[keep,keep]
+      z[lower.tri(z)] <- NA
+      diag(z) <- NA
+      z
+    })
+    names(Compare_ls) <- Cnames
+    
+    FUN_Matcomparison <- function(mat1, mat2){
+      eq <- mat1==mat2 # avoid to later compute this twice
+      # eq <- ifelse(eq, 0, mat2) # get the desired matrix
+      round(sum(!eq, na.rm = TRUE)/sum(!is.na(eq))*100, 2) # get the percentage of non equal values
+      #[1] 33.33
+    }
+    
+    comp_df <- as.data.frame(t(combn(names(Compare_ls), 2)))
+    colnames(comp_df) <- c("i", "j")
+    comp_df$OS <- apply(comp_df, MARGIN = 1, FUN = function(z){
+      FUN_Matcomparison(Compare_ls[[z[1]]], Compare_ls[[z[2]]])
+    })
+    betadiv <- comp_df
+  }else{
+    betadiv_df <- betalink::network_betadiversity(N = Compare_ls)
+    # ratio of dissimilarity of interactions due to species turnover compared to dissimilarity of interactions in shared species-pairs
+    # betadiv_df$STvOS <- betadiv_df$ST/betadiv_df$OS
+    betadiv <- betadiv_df[, c("i", "j", "OS")]
+  }
+  betadiv
 }
 
-sink(file = file.path(Dir.Exports, "Betadiversity.txt"))
-print("############### COOCCUR")
-print(betadiv_calc("COCCUR"))
-print("############### NETASSOC")
-print(betadiv_calc("NETASSOC"))
-print("############### HMSC")
-print(betadiv_calc("HMSC"))
-print("############### NDD-RIM")
-print(betadiv_calc("NDD_RIM_ASSOC"))
-
-print("############### Plot")
-print(betadiv_calc("Plot"))
-print("############### Region")
-print(betadiv_calc("Region"))
-print("############### Macro")
-print(betadiv_calc("Macro"))
-sink()
-
-betadivWithin_gg <- rbind(
-  cbind(betadiv_calc("COCCUR"), Method = "COCCUR")[,c(1,2,4,8)],
-  cbind(betadiv_calc("NETASSOC"), Method = "NETASSOC")[,c(1,2,4,8)],
-  cbind(betadiv_calc("HMSC"), Method = "HMSC")[,c(1,2,4,8)],
-  cbind(betadiv_calc("NDD_RIM_ASSOC"), Method = "NDD_RIM_ASSOC")[,c(1,2,4,8)]
-)
-colnames(betadivWithin_gg)[3] <- "Dissimilarity"
-betadivWithin_gg$Method <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivWithin_gg$Method)
-betadivWithin_gg$Method <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivWithin_gg$Method)
-
-betadivWithin_gg <- ggplot(betadivWithin_gg, aes(x = factor(j, level = c("Plot", "Region", "Macro")), 
-                             y = factor(i, level = c("Plot", "Region", "Macro"))
-                               )) +
-  geom_tile(aes(fill = Dissimilarity)) +
-  facet_wrap(~ factor(Method, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))) + 
-  scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
-  theme_bw() + labs(x = "Scale", y = "Scale")
-ggsave(betadivWithin_gg, file = file.path(Dir.Exports, "FigureBetaDivWithin.jpg"), height = 30, width = 42, units = "cm")  
-
-betadivAcross_gg <- rbind(
-  cbind(betadiv_calc("Macro"), Scale = "Macro")[,c(1,2,4,8)],
-  cbind(betadiv_calc("Region"), Scale = "Region")[,c(1,2,4,8)],
-  cbind(betadiv_calc("Plot"), Scale = "Plot")[,c(1,2,4,8)]
-)
-colnames(betadivAcross_gg)[3] <- "Dissimilarity"
-betadivAcross_gg$i <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivAcross_gg$i)
-betadivAcross_gg$j <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivAcross_gg$j)
-
-betadivAcross_gg <- ggplot(betadivAcross_gg, aes(x = factor(j, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM")), 
-                                                 y = factor(i, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))
-)) +
-  geom_tile(aes(fill = Dissimilarity)) +
-  facet_wrap(~ factor(Scale, level = c("Plot", "Region", "Macro"))) + 
-  scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
-  theme_bw() + labs(x = "Approach", y = "Approach")  
-betadivAcross_gg
-ggsave(betadivAcross_gg, file = file.path(Dir.Exports, "FigureBetaDivAcross.jpg"), height = 16, width = 42, units = "cm")
+for(ComApp_iter in c("Matrix", "Betadiv")){
+  sink(file = file.path(Dir.Exports, paste0("Betadiversity_", ComApp_iter,".txt")))
+  print("############### COOCCUR")
+  print(betadiv_calc("COCCUR", Approach = ComApp_iter))
+  print("############### NETASSOC")
+  print(betadiv_calc("NETASSOC", Approach = ComApp_iter))
+  print("############### HMSC")
+  print(betadiv_calc("HMSC", Approach = ComApp_iter))
+  print("############### NDD-RIM")
+  print(betadiv_calc("NDD_RIM_ASSOC", Approach = ComApp_iter))
+  
+  print("############### Plot")
+  print(betadiv_calc("Plot", Approach = ComApp_iter))
+  print("############### Region")
+  print(betadiv_calc("Region", Approach = ComApp_iter))
+  print("############### Macro")
+  print(betadiv_calc("Macro", Approach = ComApp_iter))
+  sink()
+  
+  betadivWithin_gg <- rbind(
+    cbind(betadiv_calc("COCCUR", Approach = ComApp_iter), Method = "COCCUR")#[,c(1,2,4,8)]
+    ,
+    cbind(betadiv_calc("NETASSOC", Approach = ComApp_iter), Method = "NETASSOC")#[,c(1,2,4,8)]
+    ,
+    cbind(betadiv_calc("HMSC", Approach = ComApp_iter), Method = "HMSC")#[,c(1,2,4,8)]
+    ,
+    cbind(betadiv_calc("NDD_RIM_ASSOC", Approach = ComApp_iter), Method = "NDD_RIM_ASSOC")#[,c(1,2,4,8)]
+  )
+  colnames(betadivWithin_gg)[3] <- "Dissimilarity"
+  betadivWithin_gg$Method <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivWithin_gg$Method)
+  betadivWithin_gg$Method <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivWithin_gg$Method)
+  
+  betadivWithin_gg <- ggplot(betadivWithin_gg, aes(x = factor(j, level = c("Plot", "Region", "Macro")), 
+                                                   y = factor(i, level = c("Plot", "Region", "Macro"))
+  )) +
+    geom_tile(aes(fill = Dissimilarity)) +
+    geom_text(aes(label= Dissimilarity)) + 
+    facet_wrap(~ factor(Method, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))) + 
+    scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
+    theme_bw() + labs(x = "Scale", y = "Scale")
+  ggsave(betadivWithin_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivWithin", ComApp_iter,".jpg")), height = 30, width = 42, units = "cm") 
+  
+  betadivAcross_gg <- rbind(
+    cbind(betadiv_calc("Macro", Approach = ComApp_iter), Scale = "Macro")#[,c(1,2,4,8)]
+    ,
+    cbind(betadiv_calc("Region", Approach = ComApp_iter), Scale = "Region")#[,c(1,2,4,8)]
+    ,
+    cbind(betadiv_calc("Plot", Approach = ComApp_iter), Scale = "Plot")#[,c(1,2,4,8)]
+  )
+  colnames(betadivAcross_gg)[3] <- "Dissimilarity"
+  betadivAcross_gg$i <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivAcross_gg$i)
+  betadivAcross_gg$j <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivAcross_gg$j)
+  
+  betadivAcross_gg <- ggplot(betadivAcross_gg, aes(x = factor(j, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM")), 
+                                                   y = factor(i, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))
+  )) +
+    geom_tile(aes(fill = Dissimilarity)) +
+    geom_text(aes(label= Dissimilarity)) + 
+    facet_wrap(~ factor(Scale, level = c("Plot", "Region", "Macro"))) + 
+    scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
+    theme_bw() + labs(x = "Approach", y = "Approach")  
+  betadivAcross_gg
+  ggsave(betadivAcross_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivAcross", ComApp_iter,".jpg")), height = 16, width = 42, units = "cm") 
+}
 
 # S5 - NETWORK VISUALISATION ACROSS SCALES ==================================
 message("############ S5")
