@@ -523,6 +523,7 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
     cbind(betadiv_calc("NDD_RIM_ASSOC", Approach = ComApp_iter), Method = "NDD_RIM_ASSOC")#[,c(1,2,4,8)]
   )
   colnames(betadivWithin_gg)[3] <- "Dissimilarity"
+  betadivWithin_gg$Dissimilarity <- round(betadivWithin_gg$Dissimilarity*100, 2)
   betadivWithin_gg$Method <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivWithin_gg$Method)
   betadivWithin_gg$Method <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivWithin_gg$Method)
   
@@ -544,6 +545,7 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
     cbind(betadiv_calc("Plot", Approach = ComApp_iter), Scale = "Plot")#[,c(1,2,4,8)]
   )
   colnames(betadivAcross_gg)[3] <- "Dissimilarity"
+  betadivAcross_gg$Dissimilarity <- round(betadivAcross_gg$Dissimilarity*100, 2)
   betadivAcross_gg$i <- gsub(pattern = "COCCUR", replacement = "COOCCUR", x = betadivAcross_gg$i)
   betadivAcross_gg$j <- gsub(pattern = "NDD_RIM_ASSOC", replacement = "NDD-RIM", x = betadivAcross_gg$j)
   
