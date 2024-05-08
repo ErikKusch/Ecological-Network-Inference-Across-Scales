@@ -475,7 +475,7 @@ betadiv_calc <- function(Compare = "HMSC", Approach = "Matrix"){
     FUN_Matcomparison <- function(mat1, mat2){
       eq <- mat1==mat2 # avoid to later compute this twice
       # eq <- ifelse(eq, 0, mat2) # get the desired matrix
-      round(sum(!eq, na.rm = TRUE)/sum(!is.na(eq))*100, 2) # get the percentage of non equal values
+      sum(!eq, na.rm = TRUE)/sum(!is.na(eq)) # get the percentage of non equal values
       #[1] 33.33
     }
     
