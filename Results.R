@@ -413,10 +413,10 @@ makeigraph <- function(data1){
   } # then its NDD-RIM data
   data1$Sig[is.na(data1$Sig)] <- FALSE
   ig1 <- graph_from_data_frame(data1[data1$Sig == TRUE,], directed = FALSE)
-  if(length(E(ig1)) != 0){
-    E(ig1)$weight <-E(ig1)$Value
-    E(ig1)$weight[E(ig1)$weight > 0] <- 1
-    E(ig1)$weight[E(ig1)$weight < 0] <- -1
+  if(length(igraph::E(ig1)) != 0){
+    igraph::E(ig1)$weight <-igraph::E(ig1)$Value
+    igraph::E(ig1)$weight[igraph::E(ig1)$weight > 0] <- 1
+    igraph::E(ig1)$weight[igraph::E(ig1)$weight < 0] <- -1
     
     origvert <- names(V(ig1))
     addvert <- unique(data1$Partner1)[unique(data1$Partner1) %nin% names(V(ig1))
@@ -455,7 +455,7 @@ betadiv_calc <- function(Compare = "HMSC", Approach = "Matrix"){
     Cnames <- names(Compare_ls)
     specs <- sort(Reduce(intersect, lapply(Compare_ls, FUN = function(y){V(y)$name})))
     Compare_ls <- lapply(Compare_ls, FUN = function(x){
-      if(length(E(x)) == 0){
+      if(length(igraph::E(x)) == 0){
         z <- as.matrix(as_adjacency_matrix(x))
       }else{
         z <- as.matrix(as_adjacency_matrix(x, attr = "weight"))
@@ -531,7 +531,7 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
                                                    y = factor(i, level = c("Plot", "Region", "Macro"))
   )) +
     geom_tile(aes(fill = Dissimilarity)) +
-    geom_text(aes(label= Dissimilarity)) + 
+    geom_label(aes(label= paste0(Dissimilarity, "%"))) + 
     facet_wrap(~ factor(Method, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))) + 
     scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
     theme_bw() + labs(x = "Scale", y = "Scale")
@@ -553,7 +553,7 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
                                                    y = factor(i, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))
   )) +
     geom_tile(aes(fill = Dissimilarity)) +
-    geom_text(aes(label= Dissimilarity)) + 
+    geom_label(aes(label= paste0(Dissimilarity, "%"))) + 
     facet_wrap(~ factor(Scale, level = c("Plot", "Region", "Macro"))) + 
     scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
     theme_bw() + labs(x = "Approach", y = "Approach")  
