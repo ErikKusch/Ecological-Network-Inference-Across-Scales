@@ -473,8 +473,8 @@ Calc.Topology <- function(data_ls = Comparable_ls,
     adj <- igraph::as_adjacency_matrix(g, attr = "weight")
     
     g_mod <- g
-    if(!is.null(E(g)$weight)){
-      E(g)$weight <- abs(E(g)$weight)
+    if(!is.null(igraph::E(g)$weight)){
+      igraph::E(g)$weight <- abs(igraph::E(g)$weight)
     }
     
     ## Node-Level Topology ----
@@ -504,19 +504,19 @@ Calc.Topology <- function(data_ls = Comparable_ls,
     ### Modularity
     print("Modularity")
     Fun.Modu <- function(g_mod){
-      E(g_mod)$weight[is.na(E(g_mod)$weight)] <- 0
+      igraph::E(g_mod)$weight[is.na(igraph::E(g_mod)$weight)] <- 0
       e <- simplify(g_mod)
-    
-        fc <- try(cluster_spinglass(g_mod, implementation = "neg", spins = 1e2), silent = TRUE)
-        if(class(fc) == "try-error"){
-          # stop()
-          modularity <- NA
-          rm(fc)
-          # fc <- cluster_optimal(g)
-          # modularity <- modularity(e, membership = fc$membership)
-        }else{
-          modularity <- fc$modularity
-        }
+      
+      fc <- try(cluster_spinglass(g_mod, implementation = "neg", spins = 1e2), silent = TRUE)
+      if(class(fc) == "try-error"){
+        # stop()
+        modularity <- NA
+        rm(fc)
+        # fc <- cluster_optimal(g)
+        # modularity <- modularity(e, membership = fc$membership)
+      }else{
+        modularity <- fc$modularity
+      }
       
       return(modularity)
     }
