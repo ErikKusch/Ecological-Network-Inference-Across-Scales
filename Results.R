@@ -620,3 +620,68 @@ ggsave(Coni_topo$plots$Strength, file = file.path(Dir.Exports, "Figure4.jpg"), h
 #                         TreatmentOrder = c("Plot", "Region", "Macro"),
 #                         FName = "S7", Directed = FALSE)
 # dev.off()
+
+# S7&8 - INPUT DATA TYPES AND VARIATION =======================================
+load(file.path(Dir.YFDP,"Pre-Fire_ModelFrames.RData"))
+LocalFrames_ls <- ModelFrames_ls
+load(file.path(Dir.FIA, "FIABiome1003.RData"))
+RegionalFrames_ls <- ModelFrames_ls
+load(file.path(Dir.FIA, "FIABiome9.RData"))
+MacroFrames_ls <- ModelFrames_ls
+
+## Within-Scale Data Correspondence ----
+WithinCorres_ls <- list(Local = LocalFrames_ls,
+                        Region = RegionalFrames_ls,
+                        Macro = MacroFrames_ls)
+
+WithinCorres_ls <- lapply(WithinCorres_ls, FUN = function(x){
+  cor_df <- data.frame(Performance = unlist(c(as.matrix(x$FitCom[,-1]))),
+                       Abundance =  unlist(c(as.matrix(x$Community[,-1]))),
+                       Occurrence = unlist(c(sign(as.matrix(x$Community[,-1])))))
+  cor_df <- na.omit(cor_df)
+  # cor(cor_df$Performance, cor_df$Abundance, use = "complete.obs")
+  
+  cowplot::plot_grid(
+    ggplot(data = cor_df, aes(x = Performance, y = Abundance)) +
+      geom_point() +
+      theme_bw(),
+    ggplot(data = data.frame(Value = c(cor_df$Performance, cor_df$Abundance),
+                             Input = rep(c("Performance", "Abundance"), each = nrow(cor_df))), 
+           aes(x = Input, y = Value)) +
+      geom_boxplot() +
+      # stat_compare_means(paired = TRUE) + 
+      theme_bw()
+  )
+})
+ggsave(plot_grid(plotlist = WithinCorres_ls, ncol = 1, labels = "AUTO"),
+       file = file.path(Dir.Exports, "S7.jpg"), height = 18*2, width = 16*2, units = "cm"
+)
+
+## Across-Scale Data Correspondence ----
+AcrossCorres_ls <- list(Local = LocalFrames_ls,
+                        Region = RegionalFrames_ls,
+                        Macro = MacroFrames_ls)
+
+
+AcrossCorres_ls <- lapply(AcrossCorres_ls, FUN = function(x){
+  rbind(
+    data.frame(x$FitCom[,Shared_spec], Input = "Performance"),
+    data.frame(x$Community[,Shared_spec], Input = "Abundance")
+  )
+})
+
+AcrossCorres_ls <- lapply(gsub(Shared_spec, pattern = " ", replacement = "."), FUN = function(x){
+  plot_df <- do.call(rbind, lapply(names(AcrossCorres_ls), FUN = function(y){
+    ret_df <- AcrossCorres_ls[[y]][, c(x, "Input")]
+    ret_df$Scale <- y
+    colnames(ret_df)[1] <- "Value"
+    ret_df
+  }))
+  ggplot(plot_df, aes(y = Value, x = factor(Scale, levels = c("Local", "Region", "Macro")))) + 
+    geom_boxplot() + 
+    facet_wrap(~Input) + 
+    # stat_compare_means() +
+    theme_bw() + labs(title = gsub(x, pattern = "\\.", replacement = " "), x = "Scale")
+})
+ggsave(plot_grid(plotlist = AcrossCorres_ls, ncol = 1, labels = "AUTO"),
+       file = file.path(Dir.Exports, "S8.jpg"), height = 32*2, width = 16*2, units = "cm")
