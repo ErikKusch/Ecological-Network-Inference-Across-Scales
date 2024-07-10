@@ -157,7 +157,7 @@ for(Treatment_Iter in Treatment_Vec){ # HMSC treatment loop
   m2 <- Hmsc(Y=Yabu, YScale = TRUE,
              XData = X,  XFormula = XFormula,
              TrData = Tr,TrFormula = TrFormula,
-             distr="normal",
+             distr="poisson",
              studyDesign=studyDesign,
              ranLevels={list("site" = rL.site)})
   m3 <- Hmsc(Y=Ybiom, YScale = TRUE,
