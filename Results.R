@@ -137,6 +137,7 @@ for(k in 1:length(MATplots_ls)){
     COCC_dat <- Plot.NetMat(data = plot_df, method = "COCCUR", datareturn = TRUE) 
     COCC_dat <- COCC_dat[COCC_dat$Condition == Treatment , ]
     COCC_dat <- bordercol(COCC_dat)
+    COCC_dat$Sig[is.na(COCC_dat$Sig)] <- FALSE
     COCC_dat$Value[is.na(COCC_dat$Value) & !COCC_dat$Sig] <- 0
     COCC_dat$Value[!COCC_dat$Sig] <- 0
     COCC_dat$Value[is.na(COCC_dat$Value)] <- 0
