@@ -72,7 +72,8 @@ package_vec <- c(
   "scales",
   "gridExtra",
   "remotes",
-  "betalink"
+  "betalink",
+  "ggpubr"
 )
 sapply(package_vec, install.load.package)
 

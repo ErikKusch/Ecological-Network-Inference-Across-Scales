@@ -71,335 +71,540 @@ Macro_full$Partner2 <- SpeciesLegend$Abbr[match(Macro_full$Partner2, SpeciesLege
 
 Shared_abbr <- SpeciesLegend$Abbr[match(Shared_spec, SpeciesLegend$Full)]
 
-# FIGURE 1, S3 & S4 - MODEL SPECIFICATION DRIVES NETWORK INFERENCE =========
-message("############ FIGURE 1, S3 & S4")
+# NETWORK INFERENCE IS NOT CONSISTENT ACROSS APPROACHES =========
+message("############ NETWORK INFERENCE IS NOT CONSISTENT ACROSS APPROACHES")
 ## DATA --------------------------------------------------------------------
-Fig1S3S4_ls <- list(Figure1 = YFDP_full,
-                  S3 = Region_full,
-                  S4 = Macro_full)
+Fig1S3S4_ls <- list(Plot = YFDP_full,
+                  Local = Region_full,
+                  Continental = Macro_full)
 MATplots_ls <- as.list(rep(NA, 3))
 names(MATplots_ls) <- c("Plot", "Region", "Macro")
+MATplots_ls <- list(
+  SignOnly = MATplots_ls,
+  RawData = MATplots_ls
+)
+
 ## PLOT PRODUCTION ---------------------------------------------------------
-for(i in 1:length(Fig1S3S4_ls)){
-  plot_df <- Fig1S3S4_ls[[i]]
-  print(names(Fig1S3S4_ls)[i])
+for(k in 1:length(MATplots_ls)){
+  for(i in 1:length(Fig1S3S4_ls)){
+    plot_df <- Fig1S3S4_ls[[i]]
+    print(names(Fig1S3S4_ls)[i])
+    
+    if(i == 1){Treatment <- "Pre-Fire"
+    Pos1 <- which(plot_df$Partner1 == "Conu" & plot_df$Partner2 == "Coco")
+    first_row <- plot_df[Pos1, ]
+    Pos2 <- which(plot_df$Partner2 == "Conu" & plot_df$Partner1 == "Coco")
+    second_row <- plot_df[Pos2, ]
+    plot_df[Pos1, ] <- second_row
+    plot_df[Pos2, ] <- first_row
+    Pos1 <- which(plot_df$Partner1 == "Cose" & plot_df$Partner2 == "Coco")
+    first_row <- plot_df[Pos1, ]
+    Pos2 <- which(plot_df$Partner2 == "Cose" & plot_df$Partner1 == "Coco")
+    second_row <- plot_df[Pos2, ]
+    plot_df[Pos1, ] <- second_row
+    plot_df[Pos2, ] <- first_row
+    }
+    if(i == 2){Treatment <- "Yosemite"
+    # Check_sp <- Reg_sp
+    }
+    if(i == 3){Treatment <- "Temperate Conifer Forests"
+    Pos1 <- which(plot_df$Partner1 == "Pien" & plot_df$Partner2 == "Pico")
+    first_row <- plot_df[Pos1, ]
+    Pos2 <- which(plot_df$Partner2 == "Pien" & plot_df$Partner1 == "Pico")
+    second_row <- plot_df[Pos2, ]
+    plot_df[Pos1, ] <- second_row
+    plot_df[Pos2, ] <- first_row
+    # Check_sp <- Macro_sp
+    }
+    
+    Fig1S3S4_ls[[i]] <- plot_df
+    bordercol <- function(testx){
+      testx$Shared <- 1
+      testx$Shared[which(testx$Partner1 %in% Shared_abbr & testx$Partner2 %in% Shared_abbr)] <- 2
+      testx$Shared[is.na(testx$Value)] <- 1
+      testx$Shared <- as.factor(testx$Shared)
+      # testx$Partner1 <- factor(testx$Partner1, levels = c(Shared_abbr, 
+      #                                           unique(testx$Partner1[testx$Partner1 %nin% Shared_abbr])))
+      # testx$Partner2 <- factor(testx$Partner2, levels = c(Shared_abbr, 
+      #                                                     unique(testx$Partner2[testx$Partner2 %nin% Shared_abbr])))
+      testx
+    }
+    
+    factorcols <- c("#ba00bd", "white", "#d9db3b", "darkgrey")
+    names(factorcols) <- c("-1", "0", "1", "NA")
+    
+    ### COCCUR ----
+    COCC_dat <- Plot.NetMat(data = plot_df, method = "COCCUR", datareturn = TRUE) 
+    COCC_dat <- COCC_dat[COCC_dat$Condition == Treatment , ]
+    COCC_dat <- bordercol(COCC_dat)
+    COCC_dat$Value[is.na(COCC_dat$Value) & !COCC_dat$Sig] <- 0
+    COCC_dat$Value[!COCC_dat$Sig] <- 0
+    COCC_dat$Value[is.na(COCC_dat$Value)] <- 0
+
+    if(k == 1){
+      COCC_dat$Value <- factor(sign(COCC_dat$Value))
+      COCC_plot <- ggplot(COCC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% as.character(COCC_dat$Value)],
+                          name = "Association") + 
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "", y = "") 
+    }else{
+      COCC_plot <- ggplot(COCC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Association")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) +
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "", y = "")
+    }
+    
+    
+    Empty_plot <- ggplot(COCC_dat, aes(x = Partner2, y = Partner1, fill = Value)) + theme_void()
+    
+    ### NETASSOC ----
+    NETA_dat <- Plot.NetMat(data = plot_df, method = "NETASSOC", datareturn = TRUE) 
+    NETA_dat <- NETA_dat[NETA_dat$Condition == Treatment, ]
+    NETA_dat <- bordercol(NETA_dat)
+    NETA_dat$Value[is.na(NETA_dat$Value) & !NETA_dat$Sig] <- 0
+    NETA_dat$Value[!NETA_dat$Sig] <- 0
+    NETA_dat$Value[is.na(NETA_dat$Value)] <- 0
+    
+    if(k == 1){
+      NETA_dat$Value <- factor(sign(NETA_dat$Value))
+      NETA_plot <- ggplot(NETA_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        ## axes
+        theme_bw() + 
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% as.character(NETA_dat$Value)], 
+                          name = "Association") +
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "", y = "")
   
-  if(i == 1){Treatment <- "Pre-Fire"
-  Pos1 <- which(plot_df$Partner1 == "Conu" & plot_df$Partner2 == "Coco")
-  first_row <- plot_df[Pos1, ]
-  Pos2 <- which(plot_df$Partner2 == "Conu" & plot_df$Partner1 == "Coco")
-  second_row <- plot_df[Pos2, ]
-  plot_df[Pos1, ] <- second_row
-  plot_df[Pos2, ] <- first_row
-  Pos1 <- which(plot_df$Partner1 == "Cose" & plot_df$Partner2 == "Coco")
-  first_row <- plot_df[Pos1, ]
-  Pos2 <- which(plot_df$Partner2 == "Cose" & plot_df$Partner1 == "Coco")
-  second_row <- plot_df[Pos2, ]
-  plot_df[Pos1, ] <- second_row
-  plot_df[Pos2, ] <- first_row
-  }
-  if(i == 2){Treatment <- "Yosemite"
-  # Check_sp <- Reg_sp
-  }
-  if(i == 3){Treatment <- "Temperate Conifer Forests"
-  Pos1 <- which(plot_df$Partner1 == "Pien" & plot_df$Partner2 == "Pico")
-  first_row <- plot_df[Pos1, ]
-  Pos2 <- which(plot_df$Partner2 == "Pien" & plot_df$Partner1 == "Pico")
-  second_row <- plot_df[Pos2, ]
-  plot_df[Pos1, ] <- second_row
-  plot_df[Pos2, ] <- first_row
-  # Check_sp <- Macro_sp
-  }
-  
-  Fig1S3S4_ls[[i]] <- plot_df
-  bordercol <- function(testx){
-    testx$Shared <- 1
-    testx$Shared[which(testx$Partner1 %in% Shared_abbr & testx$Partner2 %in% Shared_abbr)] <- 2
-    testx$Shared[is.na(testx$Value)] <- 1
-    testx$Shared <- as.factor(testx$Shared)
-    # testx$Partner1 <- factor(testx$Partner1, levels = c(Shared_abbr, 
-    #                                           unique(testx$Partner1[testx$Partner1 %nin% Shared_abbr])))
-    # testx$Partner2 <- factor(testx$Partner2, levels = c(Shared_abbr, 
-    #                                                     unique(testx$Partner2[testx$Partner2 %nin% Shared_abbr])))
-    testx
-  }
-  
-  ### COCCUR ----
-  COCC_dat <- Plot.NetMat(data = plot_df, method = "COCCUR", datareturn = TRUE) 
-  COCC_dat <- COCC_dat[COCC_dat$Condition == Treatment , ]
-  COCC_dat <- bordercol(COCC_dat)
-  
-  COCC_plot <- ggplot(COCC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Association")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) +
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "", y = "")
-  
-  Empty_plot <- ggplot(COCC_dat, aes(x = Partner2, y = Partner1, fill = Value)) + theme_void()
-  
-  ### NETASSOC ----
-  NETA_dat <- Plot.NetMat(data = plot_df, method = "NETASSOC", datareturn = TRUE) 
-  NETA_dat <- NETA_dat[NETA_dat$Condition == Treatment, ]
-  NETA_dat <- bordercol(NETA_dat)
-  
-  NETA_plot <- ggplot(NETA_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Association")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) +
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "", y = "")
-  
-  ### HMSC ----
-  HMSC_dat <- Plot.NetMat(data = plot_df, method = "HMSC", datareturn = TRUE) 
-  HMSC_dat <- HMSC_dat[HMSC_dat$Condition == Treatment, ]
-  HMSC_dat <- bordercol(HMSC_dat)
-  
-  HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "presence_absence", replacement = "Presence & Absence")
-  HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "abundance", replacement = "Abundance")
-  HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "diametre", replacement = "Performance")
-  HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "biomass", replacement = "Performance")
-  
-  HMSC_plot1 <- ggplot(HMSC_dat[HMSC_dat$Model == "Presence & Absence",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Association")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) +
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "", y = "")
-  
-  HMSC_plot2 <- ggplot(HMSC_dat[HMSC_dat$Model == "Abundance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Association")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) +
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "", y = "")
-  
-  HMSC_plot3 <- ggplot(HMSC_dat[HMSC_dat$Model == "Performance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Association")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) + 
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "", y = "")
-  
-  ### IF_REM ----
-  IFREM_dat <- Plot.NetMat(data = plot_df, method = "IF_REM", datareturn = TRUE) 
-  IFREM_dat <- IFREM_dat[IFREM_dat$Condition == Treatment, ]
-  IFREM_dat <- bordercol(IFREM_dat)
-  IFREM_dat$Sig <- factor(IFREM_dat$Sig)
-  
-  IFREM_plot <- ggplot(IFREM_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Interaction")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) + 
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "Subject", y = "Actor")
-  
-  ### IF_REM UNDIRECTED ----
-  IFREM_ASSOC_dat <- Plot.NetMat(data = plot_df, method = "IF_REM_Assoc", datareturn = TRUE) 
-  IFREM_ASSOC_dat <- IFREM_ASSOC_dat[IFREM_ASSOC_dat$Condition == Treatment, ]
-  IFREM_ASSOC_dat <- bordercol(IFREM_ASSOC_dat)
-  IFREM_ASSOC_dat$Sig[is.na(IFREM_ASSOC_dat$Sig)] <- 0
-  IFREM_ASSOC_dat$Sig <- factor(IFREM_ASSOC_dat$Sig)
-  
-  IFREM_ASSOC_plot <- ggplot(IFREM_ASSOC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
-    geom_tile(lwd = 1,
-              linetype = 1,
-              width=0.92, height=0.92) + 
-    geom_point(aes(shape = Sig), col = "black", size = 2) +
-    scale_shape_manual(values=c(32, 0, 15), na.translate = FALSE, name = "Significance") +  
-    scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
-    guides(shape = FALSE) + 
-    coord_fixed() + 
-    guides(fill = guide_colourbar(barwidth = 2,
-                                  barheight = 15,
-                                  title = "Association")) + 
-    ## axes
-    theme_bw() + 
-    theme(axis.text.x=element_text(angle = -40, hjust = 0),
-          text = element_text(size=15)) + 
-    scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
-    labs(x = "", y = "")
-  
-  grid2 <-  plot_grid(plotlist = 
-              list(
-                plot_grid(plotlist = list(COCC_plot, NETA_plot, IFREM_plot), nrow = 1, 
-                          labels = c("COOCUR", "NETASSOC", "NDD-RIM")),
-                plot_grid(plotlist = list(HMSC_plot1, HMSC_plot2, HMSC_plot3), nrow = 1, 
-                          labels = c("HMSC (Presence & Absence)", "HMSC (Abundance)", "HMSC (Performance)"))
-              ),
-            ncol = 1,
-            labels = c("")
-  )
-  ggsave(grid2, filename = file.path(Dir.Exports, paste0(names(Fig1S3S4_ls)[i], ".jpg")), height = 30, width = 50, units = "cm")
-  
-  MATplots_ls[[i]] <- list(COCCUR = list(plot = COCC_plot, 
-                                         data = COCC_dat),
-                           NETASSOC = list(plot = NETA_plot,
-                                           data = NETA_dat),
-                           HMSC = list(plot = HMSC_plot3,
-                                       data = HMSC_dat[HMSC_dat$Model == "Performance",]),
-                           NDD_RIM = list(plot = IFREM_plot,
-                                           data = IFREM_dat),
-                           NDD_RIM_ASSOC = list(plot = IFREM_ASSOC_plot,
-                                                data = IFREM_ASSOC_dat)
-                           )
+    }else{
+      NETA_plot <- ggplot(NETA_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Association")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) +
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "", y = "")
+    }
+    
+    
+    
+    ### HMSC ----
+    HMSC_dat <- Plot.NetMat(data = plot_df, method = "HMSC", datareturn = TRUE) 
+    HMSC_dat <- HMSC_dat[HMSC_dat$Condition == Treatment, ]
+    HMSC_dat <- bordercol(HMSC_dat)
+    HMSC_dat$Value[is.na(HMSC_dat$Value) & !HMSC_dat$Sig] <- 0
+    HMSC_dat$Value[!HMSC_dat$Sig] <- 0
+    
+    HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "presence_absence", replacement = "Presence & Absence")
+    HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "abundance", replacement = "Abundance")
+    HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "diametre", replacement = "Performance")
+    HMSC_dat$Model <- gsub(x = HMSC_dat$Model, pattern = "biomass", replacement = "Performance")
+    
+    if(k == 1){
+      HMSC_dat$Value <- factor(sign(HMSC_dat$Value))
+      
+      HMSC_plot1 <- ggplot(HMSC_dat[HMSC_dat$Model == "Presence & Absence",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        ## axes
+        theme_bw() + 
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% 
+                                         as.character(HMSC_dat[HMSC_dat$Model == "Presence & Absence",]$Value)],
+                          name = "Association") + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "", y = "")
+      
+      HMSC_plot2 <- ggplot(HMSC_dat[HMSC_dat$Model == "Abundance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        ## axes
+        theme_bw() + 
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% 
+                                         as.character(HMSC_dat[HMSC_dat$Model == "Abundance",]$Value)],
+                          name = "Association") + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "", y = "")
+      
+      HMSC_plot3 <- ggplot(HMSC_dat[HMSC_dat$Model == "Performance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        ## axes
+        theme_bw() + 
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% 
+                                         as.character(HMSC_dat[HMSC_dat$Model == "Performance",]$Value)],
+                          name = "Association") + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "", y = "")
+      
+    }else{
+      HMSC_plot1 <- ggplot(HMSC_dat[HMSC_dat$Model == "Presence & Absence",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Association")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) +
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "", y = "")
+      
+      HMSC_plot2 <- ggplot(HMSC_dat[HMSC_dat$Model == "Abundance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Association")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) +
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "", y = "")
+      
+      HMSC_plot3 <- ggplot(HMSC_dat[HMSC_dat$Model == "Performance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Association")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) + 
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "", y = "")
+    }
+    
+    
+    ### IF_REM ----
+    IFREM_dat <- Plot.NetMat(data = plot_df, method = "IF_REM", datareturn = TRUE) 
+    IFREM_dat <- IFREM_dat[IFREM_dat$Condition == Treatment, ]
+    IFREM_dat <- bordercol(IFREM_dat)
+    
+    # IFREM_dat$Value[is.na(IFREM_dat$Value) & IFREM_dat$Sig != 1] <- 0
+    IFREM_dat$Value[!(IFREM_dat$Sig) & !is.na(IFREM_dat$Value)] <- 0
+    IFREM_dat$Sig <- factor(IFREM_dat$Sig)
+    # IFREM_ASSOC_dat$Value[is.na(IFREM_ASSOC_dat$Value)] <- 0
+    
+    if(k == 1){
+      IFREM_dat$Value <- factor(sign(IFREM_dat$Value))
+      
+      IFREM_plot <- ggplot(IFREM_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        ## axes
+        theme_bw() + 
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% as.character(IFREM_dat$Value)], 
+                          name = "Interaction") +
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "Subject", y = "Actor")
+      
+    }else{
+      IFREM_plot <- ggplot(IFREM_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Interaction")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) + 
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "Subject", y = "Actor")
+    }
+    
+    ### IF_REM UNDIRECTED ----
+    IFREM_ASSOC_dat <- Plot.NetMat(data = plot_df, method = "IF_REM_Assoc", datareturn = TRUE) 
+    IFREM_ASSOC_dat <- IFREM_ASSOC_dat[IFREM_ASSOC_dat$Condition == Treatment, ]
+    IFREM_ASSOC_dat <- bordercol(IFREM_ASSOC_dat)
+    IFREM_ASSOC_dat$Sig[is.na(IFREM_ASSOC_dat$Sig)] <- 0
+    IFREM_ASSOC_dat$Sig <- factor(IFREM_ASSOC_dat$Sig)
+    
+    IFREM_ASSOC_dat$Value[is.na(IFREM_ASSOC_dat$Value) & IFREM_ASSOC_dat$Sig != 1] <- 0
+    IFREM_ASSOC_dat$Value[IFREM_ASSOC_dat$Sig != 1] <- 0
+    IFREM_ASSOC_dat$Value[is.na(IFREM_ASSOC_dat$Value)] <- 0
+    
+    if(k == 1){
+      IFREM_ASSOC_dat$Value <- factor(sign(IFREM_ASSOC_dat$Value))
+      
+      IFREM_ASSOC_plot <- ggplot(IFREM_ASSOC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 0, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        ## axes
+        theme_bw() + 
+        scale_fill_manual(values = 
+                            factorcols[names(factorcols) %in% as.character(IFREM_ASSOC_dat$Value)], 
+                          name = "Association") +
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15),
+              legend.position="bottom") +
+        labs(x = "", y = "")
+    
+    }else{
+      IFREM_ASSOC_plot <- ggplot(IFREM_ASSOC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
+        geom_tile(lwd = 1,
+                  linetype = 1,
+                  width=0.92, height=0.92) + 
+        geom_point(aes(shape = Sig), col = "black", size = 2) +
+        scale_shape_manual(values=c(32, 0, 15), na.translate = FALSE, name = "Significance") +  
+        scale_color_manual(values=c("white", "black"), na.translate = TRUE, name = "", guide = "none") +  
+        guides(shape = FALSE) + 
+        coord_fixed() + 
+        guides(fill = guide_colourbar(barwidth = 2,
+                                      barheight = 15,
+                                      title = "Association")) + 
+        ## axes
+        theme_bw() + 
+        theme(axis.text.x=element_text(angle = -40, hjust = 0),
+              text = element_text(size=15)) + 
+        scale_fill_gradient2(low = "#ba00bd", high = "#d9db3b") + 
+        labs(x = "", y = "")
+    }
+    
+    if(k == 1){
+      grid2 <-  plot_grid(plotlist = 
+                            list(
+                              plot_grid(plotlist = lapply(list(COCC_plot, NETA_plot, IFREM_plot), FUN = function(x){
+                                x + theme(legend.position = "none")
+                              }), 
+                              nrow = 1, 
+                                        labels = c("COOCUR", "NETASSOC", "NDD-RIM")),
+                              plot_grid(plotlist = lapply(list(HMSC_plot1, HMSC_plot2, HMSC_plot3), FUN = function(x){
+                                x + theme(legend.position = "none")
+                              }),
+                              nrow = 1, 
+                                        labels = c("HMSC (Presence & Absence)", "HMSC (Abundance)", "HMSC (Performance)"))
+                              ,
+                              as_ggplot(get_legend(HMSC_plot1))
+                            ),
+                          rel_heights = c(1, 1, 0.1), 
+                          ncol = 1,
+                          labels = c("")
+      )
+      ggsave(grid2, filename = file.path(Dir.Exports, paste0("Approaches_", names(Fig1S3S4_ls)[i], "_SIGNONLY.jpg")), height = 37, width = 50, units = "cm")
+    }else{
+      grid2 <-  plot_grid(plotlist = 
+                            list(
+                              plot_grid(plotlist = list(COCC_plot, NETA_plot, IFREM_plot), nrow = 1, 
+                                        labels = c("COOCUR", "NETASSOC", "NDD-RIM")),
+                              plot_grid(plotlist = list(HMSC_plot1, HMSC_plot2, HMSC_plot3), nrow = 1, 
+                                        labels = c("HMSC (Presence & Absence)", "HMSC (Abundance)", "HMSC (Performance)"))
+                            ),
+                          ncol = 1,
+                          labels = c("")
+      )
+      ggsave(grid2, filename = file.path(Dir.Exports, paste0("Approaches_", names(Fig1S3S4_ls)[i], ".jpg")), height = 30, width = 50, units = "cm") 
+    }
+    
+    MATplots_ls[[k]][[i]] <- list(COCCUR = list(plot = COCC_plot, 
+                                           data = COCC_dat),
+                             NETASSOC = list(plot = NETA_plot,
+                                             data = NETA_dat),
+                             HMSC = list(plot = HMSC_plot3,
+                                         data = HMSC_dat[HMSC_dat$Model == "Performance",]),
+                             NDD_RIM = list(plot = IFREM_plot,
+                                            data = IFREM_dat),
+                             NDD_RIM_ASSOC = list(plot = IFREM_ASSOC_plot,
+                                                  data = IFREM_ASSOC_dat)
+    )
+  } 
 }
 
-# FIGURE 2 - NETWORK INFERENCE IS NOT CONSISTENT ============================
-message("############ FIGURE 2")
-### DATA --------------------------------------------------------------------
-# data_ls <- Fig1S3S4_ls
-# 
-# # YFDP_limited <- YFDP_ls[grep(names(YFDP_ls), pattern = "Pre-Fire")]
-# # YFDP_spec <- unique(unlist(lapply(YFDP_limited, FUN = function(x){x[,1]})))
-# # Region_limited <- Region_ls[c(grep(names(Region_ls), pattern = "Yosemite"), grep(names(Region_ls), pattern = "Temperate Conifer Forests"))]
-# # Region_spec <- unique(unlist(lapply(Region_limited, FUN = function(x){x[,1]})))
-# # Shared_spec <- Reduce(intersect, list(YFDP_spec, Region_spec))
-# # YFDP_limited <- Limit.Lists(YFDP_limited, Shared_spec)
-# # YFDP_df <- Eff.Data.Frame(List_ls = YFDP_limited)
-# # Region_limited <- Limit.Lists(Region_limited, Shared_spec)
-# # Region_df <- Eff.Data.Frame(List_ls = Region_limited)
-# # HMSC_col <- grep(colnames(YFDP_df), pattern = "HMSC")
-# # HMSC_col <- -HMSC_col[HMSC_col %nin% grep(colnames(YFDP_df), pattern = "diametre")]
-# # YFDP_df <- YFDP_df[,HMSC_col]
-# # HMSC_col <- grep(colnames(Region_df), pattern = "HMSC")
-# # HMSC_col <- -HMSC_col[HMSC_col %nin% grep(colnames(Region_df), pattern = "biomass")]
-# # Region_df <- Region_df[,HMSC_col]
-# # data <- cbind(Region_df, YFDP_df)
-# 
-# ## select only pre-fire data for YFDP
-# data_ls[[1]] <- data_ls[[1]][,-grep(colnames(data_ls[[1]]), pattern = "Post-Fire")]
-# ## select relevant HMSC models
-# HMSC_col <- grep(colnames(data_ls[[1]]), pattern = "HMSC")
-# data_ls[[1]] <- data_ls[[1]][, -HMSC_col[HMSC_col %nin% grep(colnames(data_ls[[1]]), pattern = "diametre")]]
-# HMSC_col <- grep(colnames(data_ls[[2]]), pattern = "HMSC")
-# data_ls[[2]] <- data_ls[[2]][, -HMSC_col[HMSC_col %nin% grep(colnames(data_ls[[2]]), pattern = "biomass")]]
-# HMSC_col <- grep(colnames(data_ls[[3]]), pattern = "HMSC")
-# data_ls[[3]] <- data_ls[[3]][, -HMSC_col[HMSC_col %nin% grep(colnames(data_ls[[3]]), pattern = "biomass")]]
-# 
-# ## change names of list items and their data frame columns
-# data_ls <- lapply(1:length(data_ls), FUN = function(x){
-#   x <- data_ls[[x]]
-#   colnames(x) <- gsub(x = colnames(x), pattern = "COCCUR", replacement = "COOCCUR")
-#   colnames(x) <- gsub(x = colnames(x), pattern = "IF_REM", replacement = "NDD-RIM")
-#   colnames(x) <- gsub(x = colnames(x), pattern = "Yosemite", replacement = "Region")
-#   colnames(x) <- gsub(x = colnames(x), pattern = "Pre-Fire", replacement = "Plot")
-#   colnames(x) <- gsub(x = colnames(x), pattern = "Temperate Conifer Forests", replacement = "Macro")
-#   x
-# })
-# names(data_ls) <- c("Plot", "Region", "Macro")
-# data_ls$Region$COOCCUR.Region.Sig <- FALSE
-
-# Species_ls <- base::strsplit(x = as.character(unique(data$Partner1)), split = " ")
-# SpeciesLegend <- data.frame(Abbr = paste0(substr(unlist(lapply(Species_ls, "[[", 1)), start = 1, stop = 2),
-#                                           substr(unlist(lapply(Species_ls, "[[", 2)), start = 1, stop = 2)),
-#                             Full = unique(data$Partner1)
-# )
-# print(SpeciesLegend)
-# data$Partner1 <- SpeciesLegend$Abbr[match(data$Partner1, SpeciesLegend$Full)]
-# data$Partner2 <- SpeciesLegend$Abbr[match(data$Partner2, SpeciesLegend$Full)]
-## PLOT PRODUCTION ---------------------------------------------------------
-# gplot <- Plot.NetMat.Cross(data = data_ls,
-#                            ALLRegionOrder = c("Plot", "Region", "Macro"),
-#                            ALLMethodOrder = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))
-# ggsave(gplot, file = file.path(Dir.Exports, "Figure2.jpg"), height = 54, width = 32, units = "cm") 
+# NETWORK INFERENCE IS NOT CONSISTENT ACROSS SCALES ============================
+message("############ NETWORK INFERENCE IS NOT CONSISTENT ACROSS SCALES")
+grid2 <-  plot_grid(plotlist = 
+                      list(
+                        plot_grid(plotlist = 
+                                    lapply(
+                                      list(MATplots_ls$SignOnly$Plot$COCCUR$plot,
+                                           MATplots_ls$SignOnly$Region$COCCUR$plot,
+                                           MATplots_ls$SignOnly$Macro$COCCUR$plot), 
+                                      FUN = function(x){
+                                        x + theme(legend.position = "none")
+                                      }), 
+                                  nrow = 1, 
+                                  labels = c("Plot", "Region", "Macro")),
+                        plot_grid(plotlist = 
+                                    lapply(
+                                      list(MATplots_ls$SignOnly$Plot$NETASSOC$plot,
+                                           MATplots_ls$SignOnly$Region$NETASSOC$plot,
+                                           MATplots_ls$SignOnly$Macro$NETASSOC$plot), 
+                                      FUN = function(x){
+                                        x + theme(legend.position = "none")
+                                      }), 
+                                  nrow = 1, 
+                                  labels = c("Plot", "Region", "Macro")),
+                        plot_grid(plotlist = 
+                                    lapply(
+                                      list(MATplots_ls$SignOnly$Plot$HMSC$plot,
+                                           MATplots_ls$SignOnly$Region$HMSC$plot,
+                                           MATplots_ls$SignOnly$Macro$HMSC$plot), 
+                                      FUN = function(x){
+                                        x + theme(legend.position = "none")
+                                      }), 
+                                  nrow = 1, 
+                                  labels = c("Plot", "Region", "Macro")),
+                        plot_grid(plotlist = 
+                                    lapply(
+                                      list(MATplots_ls$SignOnly$Plot$NDD_RIM_ASSOC$plot,
+                                           MATplots_ls$SignOnly$Region$NDD_RIM_ASSOC$plot,
+                                           MATplots_ls$SignOnly$Macro$NDD_RIM_ASSOC$plot), 
+                                      FUN = function(x){
+                                        x + theme(legend.position = "none")
+                                      }), 
+                                      nrow = 1, 
+                                  labels = c("Plot", "Region", "Macro")),
+                        as_ggplot(get_legend(MATplots_ls$SignOnly$Plot$HMSC$plot))
+                      ),
+                    rel_heights = c(1, 1, 1, 1, 0.1), 
+                    ncol = 1,
+                    labels = c("")
+)
+ggsave(grid2, filename = file.path(Dir.Exports, "Scales_SIGNONLY.jpg"), 
+       height = 60, width = 38, units = "cm")
 
 
 grid2 <-  plot_grid(plotlist = 
                       list(
-                        plot_grid(plotlist = list(MATplots_ls$Plot$COCCUR$plot,
-                                                  MATplots_ls$Region$COCCUR$plot,
-                                                  MATplots_ls$Macro$COCCUR$plot), nrow = 1, 
+                        plot_grid(plotlist = list(MATplots_ls$RawData$Plot$COCCUR$plot,
+                                                  MATplots_ls$RawData$Region$COCCUR$plot,
+                                                  MATplots_ls$RawData$Macro$COCCUR$plot), nrow = 1, 
                                   labels = c("Plot", "Region", "Macro")),
-                        plot_grid(plotlist = list(MATplots_ls$Plot$NETASSOC$plot,
-                                                  MATplots_ls$Region$NETASSOC$plot,
-                                                  MATplots_ls$Macro$NETASSOC$plot), nrow = 1, 
+                        plot_grid(plotlist = list(MATplots_ls$RawData$Plot$NETASSOC$plot,
+                                                  MATplots_ls$RawData$Region$NETASSOC$plot,
+                                                  MATplots_ls$RawData$Macro$NETASSOC$plot), nrow = 1, 
                                   labels = c("Plot", "Region", "Macro")),
-                        plot_grid(plotlist = list(MATplots_ls$Plot$HMSC$plot,
-                                                  MATplots_ls$Region$HMSC$plot,
-                                                  MATplots_ls$Macro$HMSC$plot), nrow = 1, 
+                        plot_grid(plotlist = list(MATplots_ls$RawData$Plot$HMSC$plot,
+                                                  MATplots_ls$RawData$Region$HMSC$plot,
+                                                  MATplots_ls$RawData$Macro$HMSC$plot), nrow = 1, 
                                   labels = c("Plot", "Region", "Macro")),
-                        plot_grid(plotlist = list(MATplots_ls$Plot$NDD_RIM_ASSOC$plot,
-                                                  MATplots_ls$Region$NDD_RIM_ASSOC$plot,
-                                                  MATplots_ls$Macro$NDD_RIM_ASSOC$plot), nrow = 1, 
+                        plot_grid(plotlist = list(MATplots_ls$RawData$Plot$NDD_RIM_ASSOC$plot,
+                                                  MATplots_ls$RawData$Region$NDD_RIM_ASSOC$plot,
+                                                  MATplots_ls$RawData$Macro$NDD_RIM_ASSOC$plot), nrow = 1, 
                                   labels = c("Plot", "Region", "Macro"))
                       ),
                     ncol = 1,
                     labels = c("")
 )
-ggsave(grid2, filename = file.path(Dir.Exports, "Figure2.jpg"), 
+ggsave(grid2, filename = file.path(Dir.Exports, "Scales.jpg"), 
        height = 60, width = 50, units = "cm")
 
 # TABLES – BETADIVERSITY COMPARISON =========================================
@@ -641,17 +846,18 @@ WithinCorres_ls <- lapply(WithinCorres_ls, FUN = function(x){
   cor_df <- na.omit(cor_df)
   # cor(cor_df$Performance, cor_df$Abundance, use = "complete.obs")
   
-  cowplot::plot_grid(
+  # cowplot::plot_grid(
     ggplot(data = cor_df, aes(x = Performance, y = Abundance)) +
       geom_point() +
-      theme_bw(),
-    ggplot(data = data.frame(Value = c(cor_df$Performance, cor_df$Abundance),
-                             Input = rep(c("Performance", "Abundance"), each = nrow(cor_df))), 
-           aes(x = Input, y = Value)) +
-      geom_boxplot() +
-      # stat_compare_means(paired = TRUE) + 
       theme_bw()
-  )
+  #   ,
+  #   ggplot(data = data.frame(Value = c(cor_df$Performance, cor_df$Abundance),
+  #                            Input = rep(c("Performance", "Abundance"), each = nrow(cor_df))), 
+  #          aes(x = Input, y = Value)) +
+  #     geom_boxplot() +
+  #     # stat_compare_means(paired = TRUE) + 
+  #     theme_bw()
+  # )
 })
 ggsave(plot_grid(plotlist = WithinCorres_ls, ncol = 1, labels = "AUTO"),
        file = file.path(Dir.Exports, "S7.jpg"), height = 18*2, width = 16*2, units = "cm"
