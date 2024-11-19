@@ -83,6 +83,7 @@ MATplots_ls <- list(
   SignOnly = MATplots_ls,
   RawData = MATplots_ls
 )
+MATs_ls <- MATplots_ls
 
 ## PLOT PRODUCTION ---------------------------------------------------------
 for(k in 1:length(MATplots_ls)){
@@ -638,8 +639,8 @@ makeigraph <- function(data1){
 }
 
 betadiv_calc <- function(Compare = "HMSC", Approach = "Matrix"){
-  Full_ls <- lapply(MATplots_ls, FUN = function(x){
-    x[names(x) != "NDD_RIM"]
+  Full_ls <- lapply(MATplots_ls$RawData, FUN = function(x){
+    lapply(x[names(x) != "NDD_RIM"], "[[", "data")
   })
   
   firstlevl <- names(Full_ls)
@@ -647,13 +648,13 @@ betadiv_calc <- function(Compare = "HMSC", Approach = "Matrix"){
   
   if(Compare %in% firstlevl){
     Compare_ls <- lapply(Full_ls[[Compare]], FUN = function(x){
-      makeigraph(x$data)
+      makeigraph(x)
     })
   }
   
   if(Compare %in% secondlevl){
     Compare_ls <- lapply(Full_ls, FUN = function(x){
-      makeigraph(x[[Compare]]$data)
+      makeigraph(x[[Compare]])
     })
   }
   
@@ -741,7 +742,7 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
     facet_wrap(~ factor(Method, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))) + 
     scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
     theme_bw() + labs(x = "Scale", y = "Scale")
-  ggsave(betadivWithin_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivWithin", ComApp_iter,".jpg")), height = 30, width = 42, units = "cm") 
+  ggsave(betadivWithin_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivWithin", ComApp_iter,".jpg")), height = 15, width = 21, units = "cm") 
   
   betadivAcross_gg <- rbind(
     cbind(betadiv_calc("Macro", Approach = ComApp_iter), Scale = "Macro")#[,c(1,2,4,8)]
@@ -764,7 +765,7 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
     scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
     theme_bw() + labs(x = "Approach", y = "Approach")  
   betadivAcross_gg
-  ggsave(betadivAcross_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivAcross", ComApp_iter,".jpg")), height = 16, width = 42, units = "cm") 
+  ggsave(betadivAcross_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivAcross", ComApp_iter,".jpg")), height = 12, width = 30, units = "cm") 
 }
 
 # S5 - NETWORK VISUALISATION ACROSS SCALES ==================================
