@@ -160,8 +160,9 @@ for(k in 1:length(MATplots_ls)){
         ## axes
         theme_bw() + 
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "", y = "") 
     }else{
       COCC_plot <- ggplot(COCC_dat, aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
@@ -212,8 +213,9 @@ for(k in 1:length(MATplots_ls)){
                             factorcols[names(factorcols) %in% as.character(NETA_dat$Value)], 
                           name = "Association") +
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "", y = "")
   
     }else{
@@ -270,8 +272,9 @@ for(k in 1:length(MATplots_ls)){
                                          as.character(HMSC_dat[HMSC_dat$Model == "Presence & Absence",]$Value)],
                           name = "Association") + 
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "", y = "")
       
       HMSC_plot2 <- ggplot(HMSC_dat[HMSC_dat$Model == "Abundance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
@@ -290,8 +293,9 @@ for(k in 1:length(MATplots_ls)){
                                          as.character(HMSC_dat[HMSC_dat$Model == "Abundance",]$Value)],
                           name = "Association") + 
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "", y = "")
       
       HMSC_plot3 <- ggplot(HMSC_dat[HMSC_dat$Model == "Performance",], aes(x = Partner2, y = Partner1, fill = Value, col = Shared)) +
@@ -310,8 +314,9 @@ for(k in 1:length(MATplots_ls)){
                                          as.character(HMSC_dat[HMSC_dat$Model == "Performance",]$Value)],
                           name = "Association") + 
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "", y = "")
       
     }else{
@@ -402,8 +407,9 @@ for(k in 1:length(MATplots_ls)){
                             factorcols[names(factorcols) %in% as.character(IFREM_dat$Value)], 
                           name = "Interaction") +
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "Subject", y = "Actor")
       
     }else{
@@ -456,8 +462,9 @@ for(k in 1:length(MATplots_ls)){
                             factorcols[names(factorcols) %in% as.character(IFREM_ASSOC_dat$Value)], 
                           name = "Association") +
         theme(axis.text.x=element_text(angle = -40, hjust = 0),
-              text = element_text(size=15),
+              text = element_text(size=20),
               legend.position="bottom") +
+        theme(legend.key.size = unit(2, 'cm')) + 
         labs(x = "", y = "")
     
     }else{
@@ -740,9 +747,11 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
     geom_tile(aes(fill = Dissimilarity)) +
     geom_label(aes(label= paste0(Dissimilarity, "%"))) + 
     facet_wrap(~ factor(Method, level = c("COOCCUR", "NETASSOC", "HMSC", "NDD-RIM"))) + 
-    scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
-    theme_bw() + labs(x = "Scale", y = "Scale")
-  ggsave(betadivWithin_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivWithin", ComApp_iter,".jpg")), height = 15, width = 21, units = "cm") 
+    scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3, limits = c(0, 100)) + 
+    theme_bw() + labs(x = "Scale", y = "Scale") + 
+    theme(legend.position = "bottom", legend.key.width  = unit(3.3, "cm"),
+          legend.key.height = unit(0.75, "cm"))
+  ggsave(betadivWithin_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivWithin", ComApp_iter,".jpg")), height = 17, width = 21, units = "cm") 
   
   betadivAcross_gg <- rbind(
     cbind(betadiv_calc("Macro", Approach = ComApp_iter), Scale = "Macro")#[,c(1,2,4,8)]
@@ -762,10 +771,12 @@ for(ComApp_iter in c("Matrix", "Betadiv")){
     geom_tile(aes(fill = Dissimilarity)) +
     geom_label(aes(label= paste0(Dissimilarity, "%"))) + 
     facet_wrap(~ factor(Scale, level = c("Plot", "Region", "Macro"))) + 
-    scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3) + 
-    theme_bw() + labs(x = "Approach", y = "Approach")  
+    scale_fill_viridis_c(option = "F", direction = -1, begin = 0.3, limits = c(0, 100)) + 
+    theme_bw() + labs(x = "Approach", y = "Approach")  +
+    theme(legend.position = "bottom", legend.key.width  = unit(4.8, "cm"),
+          legend.key.height = unit(0.75, "cm"))
   betadivAcross_gg
-  ggsave(betadivAcross_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivAcross", ComApp_iter,".jpg")), height = 12, width = 30, units = "cm") 
+  ggsave(betadivAcross_gg, file = file.path(Dir.Exports, paste0("FigureBetaDivAcross", ComApp_iter,".jpg")), height = 14, width = 30, units = "cm") 
 }
 
 # S5 - NETWORK VISUALISATION ACROSS SCALES ==================================
